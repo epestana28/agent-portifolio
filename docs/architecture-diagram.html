@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Agent Portifolio: Three-Plane Architecture</title>
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; background: #f9fafb; margin: 0; padding: 20px; }
+  .container { max-width: 100%; margin: 0 auto; background: white; border-radius: 8px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  h1 { margin-top: 0; color: #111827; }
+  .diagram { width: 100%; overflow-x: auto; margin: 24px 0; }
+  svg { display: block; }
+  .section { margin: 32px 0; }
+  .section-title { font-size: 16px; font-weight: 700; color: #111827; margin: 24px 0 12px 0; }
+  .box { font-size: 13px; line-height: 1.6; color: #374151; padding: 16px; background: #f3f4f6; border-radius: 4px; border-left: 4px solid #3b82f6; }
+  .box.green { border-left-color: #10b981; }
+  .box.amber { border-left-color: #f59e0b; }
+  .box.pink { border-left-color: #ec4899; }
+  .box strong { color: #111827; }
+  .code { background: #1f2937; color: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Agent Portifolio, Three-Plane Architecture</h1>
+  
+  <div class="diagram">
+    <svg width="1200" height="700" style="border: 1px solid #e5e7eb; border-radius: 4px; background: white;">
+      <defs>
+        <marker id="arrowhead-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><polygon points="0 0, 10 3, 0 6" fill="#3b82f6"/></marker>
+        <marker id="arrowhead-amber" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><polygon points="0 0, 10 3, 0 6" fill="#f59e0b"/></marker>
+        <marker id="arrowhead-purple" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><polygon points="0 0, 10 3, 0 6" fill="#8b5cf6"/></marker>
+      </defs>
+      
+      <!-- Plane boundaries -->
+      <rect x="20" y="20" width="340" height="300" fill="none" stroke="#3b82f6" stroke-width="2" stroke-dasharray="6,4" rx="4"/>
+      <text x="30" y="40" font-size="13" font-weight="700" fill="#3b82f6">CONTROL PLANE</text>
+      
+      <rect x="400" y="20" width="380" height="300" fill="none" stroke="#10b981" stroke-width="2" stroke-dasharray="6,4" rx="4"/>
+      <text x="410" y="40" font-size="13" font-weight="700" fill="#10b981">DATA PLANE</text>
+      
+      <rect x="830" y="20" width="340" height="300" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6,4" rx="4"/>
+      <text x="840" y="40" font-size="13" font-weight="700" fill="#f59e0b">WORKER PLANE</text>
+      
+      <rect x="20" y="360" width="1150" height="300" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-dasharray="6,4" rx="4"/>
+      <text x="30" y="380" font-size="13" font-weight="700" fill="#8b5cf6">STORAGE LAYER</text>
+      
+      <!-- Components -->
+      <rect x="30" y="60" width="160" height="60" fill="white" stroke="#3b82f6" stroke-width="1.5" rx="3"/>
+      <text x="40" y="75" font-size="11" font-weight="700" fill="#3b82f6">Operators</text>
+      <text x="40" y="92" font-size="10" fill="#374151">Register, Approve,</text>
+      <text x="40" y="107" font-size="10" fill="#374151">Suspend, Reactivate</text>
+      
+      <rect x="30" y="150" width="160" height="60" fill="white" stroke="#3b82f6" stroke-width="1.5" rx="3"/>
+      <text x="40" y="165" font-size="11" font-weight="700" fill="#3b82f6">Control API</text>
+      <text x="40" y="182" font-size="10" fill="#374151">/agents, /suspend,</text>
+      <text x="40" y="197" font-size="10" fill="#374151">/capabilities</text>
+      
+      <rect x="210" y="100" width="140" height="80" fill="white" stroke="#3b82f6" stroke-width="1.5" rx="3"/>
+      <text x="220" y="115" font-size="11" font-weight="700" fill="#3b82f6">Control Service</text>
+      <text x="220" y="132" font-size="10" fill="#374151">State transitions,</text>
+      <text x="220" y="145" font-size="10" fill="#374151">domain logic</text>
+      
+      <rect x="410" y="60" width="150" height="60" fill="white" stroke="#10b981" stroke-width="1.5" rx="3"/>
+      <text x="420" y="75" font-size="11" font-weight="700" fill="#10b981">Agent Identity</text>
+      <text x="420" y="92" font-size="10" fill="#374151">Token validation</text>
+      <text x="420" y="105" font-size="10" fill="#374151">(from JWT)</text>
+      
+      <rect x="590" y="60" width="160" height="60" fill="white" stroke="#10b981" stroke-width="1.5" rx="3"/>
+      <text x="600" y="75" font-size="11" font-weight="700" fill="#10b981">Executor Service</text>
+      <text x="600" y="92" font-size="10" fill="#374151">3 atomic TXs:</text>
+      <text x="600" y="105" font-size="10" fill="#374151">Admit, Execute, Complete</text>
+      
+      <rect x="410" y="150" width="190" height="80" fill="white" stroke="#10b981" stroke-width="1.5" rx="3"/>
+      <text x="420" y="165" font-size="11" font-weight="700" fill="#10b981">Wallet (Capabilities)</text>
+      <text x="420" y="182" font-size="10" fill="#374151">Agent, operation, resource,</text>
+      <text x="420" y="195" font-size="10" fill="#374151">expiry, revocation epoch</text>
+      
+      <rect x="620" y="150" width="140" height="80" fill="white" stroke="#10b981" stroke-width="1.5" rx="3"/>
+      <text x="630" y="165" font-size="11" font-weight="700" fill="#10b981">AuthZ Engine</text>
+      <text x="630" y="182" font-size="10" fill="#374151">Deterministic</text>
+      <text x="630" y="195" font-size="10" fill="#374151">decisions</text>
+      
+      <rect x="840" y="60" width="150" height="60" fill="white" stroke="#f59e0b" stroke-width="1.5" rx="3"/>
+      <text x="850" y="75" font-size="11" font-weight="700" fill="#f59e0b">Outbox</text>
+      <text x="850" y="92" font-size="10" fill="#374151">Pending suspension</text>
+      <text x="850" y="105" font-size="10" fill="#374151">messages</text>
+      
+      <rect x="1010" y="60" width="150" height="60" fill="white" stroke="#f59e0b" stroke-width="1.5" rx="3"/>
+      <text x="1020" y="75" font-size="11" font-weight="700" fill="#f59e0b">Containment Orch.</text>
+      <text x="1020" y="92" font-size="10" fill="#374151">4 parallel steps</text>
+      
+      <!-- Flow arrows -->
+      <line x1="470" y1="120" x2="590" y2="120" stroke="#3b82f6" stroke-width="2.5" marker-end="url(#arrowhead-blue)"/>
+      <text x="510" y="140" font-size="10" fill="#3b82f6" font-weight="600">request</text>
+      
+      <line x1="350" y1="250" x2="840" y2="120" stroke="#ef4444" stroke-width="2.5" marker-end="url(#arrowhead-blue)"/>
+      <text x="560" y="180" font-size="10" fill="#ef4444" font-weight="600">suspend (atomic TX)</text>
+      
+      <line x1="680" y1="270" x2="500" y2="390" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arrowhead-purple)"/>
+      <text x="600" y="330" font-size="10" fill="#8b5cf6" font-weight="600">record to storage</text>
+    </svg>
+  </div>
+  
+  <div class="section">
+    <div class="section-title">Workflow: Agent Request</div>
+    <div class="box">
+      1. Agent sends JWT plus request to <span class="code">POST /actions</span><br>
+      2. Executor validates token, checks revocation epoch<br>
+      3. AuthZ Engine makes deterministic decision (no external I/O)<br>
+      4. If allowed, call external service with re-validation before call<br>
+      5. Record decision plus audit event (atomic transaction)
+    </div>
+  </div>
+  
+  <div class="section">
+    <div class="section-title">Workflow: Suspension</div>
+    <div class="box amber">
+      <strong>Control Plane (atomic single transaction):</strong><br>
+      1. Operator calls <span class="code">POST /agents/{id}/suspend</span><br>
+      2. Change state to Suspended<br>
+      3. Increment revocation epoch (invalidates all capabilities)<br>
+      4. Write containment operation to outbox<br>
+      5. Record audit event<br>
+      <br>
+      <strong>Worker Plane (asynchronous):</strong><br>
+      6. Containment Orchestrator picks up from outbox<br>
+      7. Runs 4 adapters in parallel: disable identity, remove grants, isolate runtime, probe tokens<br>
+      8. Each step records honest state: Executed, Failed, or Unknown<br>
+      9. Summary: VerifiedScoped (all verified) or Partial (any Unknown)
+    </div>
+  </div>
+  
+  <div class="section">
+    <div class="section-title">Key Principles</div>
+    <div class="box green">
+      <strong>✓ Deterministic Authorization</strong> — No I/O in the AuthZ Engine. Same inputs always produce the same decision.<br><br>
+      <strong>✓ Three-Transaction Pipeline</strong> — TX1 (admit), TX2 (execute), TX3 (audit). Each can fail independently, state stays consistent.<br><br>
+      <strong>✓ Fail-Closed</strong> — If state unavailable, respond 403 Denied. Never cache positive decisions.<br><br>
+      <strong>✓ Ledger is Native</strong> — SQL Server LEDGER=ON, not custom blockchain. UPDATE/DELETE rejected by the engine.<br><br>
+      <strong>✓ Honest Containment</strong> — Each external step has an honest state. Unknown if uncertain, never assume success.<br><br>
+      <strong>✓ Atomic Suspension</strong> — Revocation epoch, containment, and audit all in one TX.
+    </div>
+  </div>
+  
+  <div class="section">
+    <div class="section-title">What's Simulated (Today)</div>
+    <div class="box pink">
+      All external service calls (Entra, Graph, SharePoint) run against an in-memory simulation with fault injection capability. This proves the control logic works, it is NOT evidence of how Microsoft services behave. Phase C will run against a real tenant.
+    </div>
+  </div>
+</div>
+</body>
+</html>
