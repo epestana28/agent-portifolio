@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <ProjectReference Include="..\Core\Core.csproj" />
+    <ProjectReference Include="..\Simulation\Simulation.csproj" />
+    <ProjectReference Include="..\Storage.SqlServer\Storage.SqlServer.csproj" />
+  </ItemGroup>
+</Project>
