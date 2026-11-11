@@ -112,7 +112,7 @@ The specification defines 20 blocking tests (BT-01 to BT-20). The status of each
 | B | Local vertical slice without credentials | Done and tested. |
 | C | Read pilot on a test tenant | Not started. Blocked until the phase A gates are approved. |
 | D | Real containment and timing measurements | Not started. |
-| E | Hardening and operation | Not started. The Bicep in `infra/bicep` has never been compiled or deployed. |
+| E | Hardening and operation | Not started. The Bicep in `infra/bicep` has to be compiled and deployed when the project moves to a real tenant. |
 
 ## Documentation
 
