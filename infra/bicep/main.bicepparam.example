@@ -1,0 +1,52 @@
+// Exemplo de ficheiro de parâmetros. Copiar para main.bicepparam e preencher.
+// O ficheiro real não entra no repositório (acrescentar ao .gitignore).
+//
+// Todos os valores abaixo são marcadores. Nenhum é um valor real, nenhum é segredo.
+// Os parâmetros sem valor por omissão em main.bicep têm de ser decididos e preenchidos aqui.
+// Os valores marcados POR VALIDAR não estão confirmados na pesquisa de 2026-11-11.
+
+using './main.bicep'
+
+// ---------- Geral ----------
+param namePrefix = 'apdemo'                                  // minúsculas e dígitos, máximo 9
+param tenantId = '00000000-0000-0000-0000-000000000000'     // POR PREENCHER NO TENANT
+param adminObjectIds = [
+  '00000000-0000-0000-0000-000000000000'                    // POR PREENCHER NO TENANT: grupo Entra administrador do SQL
+]
+param sqlAdminLogin = 'NOME-DO-GRUPO-ADMIN'                 // POR PREENCHER NO TENANT
+param sqlAdminPrincipalType = 'Group'
+
+// ---------- Aplicações ----------
+param containerImage = 'REGISTO/IMAGEM:TAG'                 // POR PREENCHER: imagem única com os três serviços (AP_SERVICE escolhe qual corre). A do docker-compose.yml é ghcr.io/epestana28/agent-portifolio
+param registryServer = ''                                   // vazio se a imagem não exigir identidade para ser puxada
+param targetPort = 8080                                     // tem de coincidir com a porta da imagem
+param controlApiAudience = 'api://POR-PREENCHER-CONTROL'    // POR PREENCHER NO TENANT
+param executorAudience = 'api://POR-PREENCHER-EXECUTOR'     // POR PREENCHER NO TENANT
+param adaptersMode = 'Simulation'                            // único valor que o código aceita. Qualquer outro impede o arranque. Não existe adaptador real
+
+// ---------- Base de dados e digests ----------
+param databaseSkuName = 'GP_Gen5_2'                         // POR VALIDAR: só aparece como objectivo de serviço num exemplo T-SQL
+param isLedgerOn = false                                    // IRREVERSÍVEL. Decidir na Fase A (ver README)
+param backupStorageRedundancy = 'Geo'
+param storageSkuName = 'Standard_GRS'                       // LRS não é suportado para digests automáticos
+param digestImmutabilityDays = 1                            // SÓ PARA ENSAIO. A documentação avisa que 1 dia não serve para produção
+param enableLedgerDigestUpload = false                      // ligar só depois do papel de escrita do servidor SQL na conta (README)
+
+// ---------- Service Bus, monitorização ----------
+param serviceBusSkuName = 'Standard'                        // POR VALIDAR: grafia exacta na referência
+param logRetentionInDays = 30                               // POR VALIDAR: valores aceites "per pricing plan"
+param logDailyQuotaGb = 0                                   // 0 não define limite
+
+// ---------- APIM ----------
+param apimSkuName = 'Developer'                             // decisão de custo e de rede da Fase A
+param apimSkuCapacity = 1                                   // para Consumption tem de ser 0
+param apimPublisherEmail = 'publicador@exemplo.invalid'     // POR PREENCHER
+param apimPublisherName = 'POR PREENCHER'
+param executorClientApplicationIds = [
+  '00000000-0000-0000-0000-000000000000'                    // POR PREENCHER NO TENANT: appId da identidade do agente
+]
+
+param tags = {
+  projecto: 'agent-portifolio'
+  ambiente: 'teste'
+}

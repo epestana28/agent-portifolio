@@ -1,0 +1,21 @@
+<!-- Modelo de política de entrada da API do policy-executor. Os marcadores entre sublinhados duplos são substituídos por modules/apim.bicep, que também documenta o que está por validar. -->
+<policies>
+    <inbound>
+        <base />
+        <validate-azure-ad-token tenant-id="__TENANT_ID__" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
+            <client-application-ids>__CLIENT_APPLICATION_IDS__</client-application-ids>
+            <audiences>
+                <audience>__AUDIENCE__</audience>
+            </audiences>
+        </validate-azure-ad-token>
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>
