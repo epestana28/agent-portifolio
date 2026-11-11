@@ -144,7 +144,7 @@ runbooks/              operating procedures
 
 ## About the name
 
-"Portifolio" is the spelling chosen for the project and it is used on purpose in the repository, the namespaces and the image.
+The project is called **Agent Portifolio**. The spelling is deliberate and is used consistently in the repository, the namespaces and the image.
 
 ## Licence
 
