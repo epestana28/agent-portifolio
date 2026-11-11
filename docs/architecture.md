@@ -325,7 +325,7 @@ NOT VERIFIED: that a real token from an agent identity carries `tid` and `oid` w
 
 ### Adapter mode
 
-`Adapters:Mode` is mandatory. The only accepted value is `Simulation`. Any other value makes the host fail at start-up, with the message that the real Microsoft adapters are blocked until the phase A gates are approved. This is deliberate: it does not pretend a real adapter exists. The real adapters do not exist.
+`Adapters:Mode` is mandatory. The only accepted value is `Simulation`. Any other value makes the host fail at start-up, with the message that the real Microsoft adapters do not exist yet and need a real test tenant and the phase A gate approved first. This is deliberate: it does not pretend a real adapter exists. The real adapters do not exist.
 
 Start-up always logs a warning that the adapters are running in simulation and that nothing the host reports about Entra, Graph or SharePoint is real evidence. In `Simulation`, the executor can be seeded with sample libraries and documents through the `Simulation` section.
 

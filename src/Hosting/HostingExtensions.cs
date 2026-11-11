@@ -128,7 +128,7 @@ public static class HostingExtensions
         var mode = configuration["Adapters:Mode"] ?? throw new InvalidOperationException("Adapters:Mode is required. The only mode available today is Simulation.");
         if (!string.Equals(mode, "Simulation", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException($"Adapters:Mode '{mode}' is not available. Real Microsoft adapters are blocked until the phase A gates are approved; only Simulation exists.");
+            throw new InvalidOperationException($"Adapters:Mode '{mode}' is not available. Real Microsoft adapters do not exist yet: they need a real test tenant and the phase A gate approved first. Only Simulation exists.");
         }
 
         services.TryAddSingleton(TimeProvider.System);

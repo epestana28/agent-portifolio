@@ -110,7 +110,7 @@ The specification defines 20 blocking tests (BT-01 to BT-20). The status of each
 |---|---|---|
 | A | Environment assessment, architecture, threat model, permission matrix, test plan, costs | Documents written from the official documentation. Every row of the permission matrix is still to be confirmed on a tenant. |
 | B | Local vertical slice without credentials | Done and tested. |
-| C | Read pilot on a test tenant | Not started. Blocked until the phase A gates are approved. |
+| C | Read pilot on a test tenant | Not started. Needs a real test tenant, and the phase A gate approved first (see [`docs/backlog.md`](docs/backlog.md)). |
 | D | Real containment and timing measurements | Not started. |
 | E | Hardening and operation | Not started. The Bicep in `infra/bicep` has to be compiled and deployed when the project moves to a real tenant. |
 

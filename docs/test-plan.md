@@ -169,4 +169,4 @@ In order of risk, what closes most gaps:
 4. A test on the logs of the hosts to complete BT-18.
 5. A test for TC-10, when the rule exists.
 
-The real adapters are blocked until the phase A gates are approved. Until they exist, this matrix cannot move up from "Simulation only" or "To be proven on a tenant".
+The real adapters do not exist yet: they need a real test tenant and the phase A gate approved first. Until they exist, this matrix cannot move up from "Simulation only" or "To be proven on a tenant".
