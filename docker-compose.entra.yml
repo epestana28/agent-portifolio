@@ -1,0 +1,23 @@
+# Override: validate real Microsoft Entra tokens of YOUR tenant instead of development tokens.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.entra.yml up -d
+#
+# What becomes real: signature, issuer, audience, lifetime and tenant validation of every call.
+# What stays simulated: Entra administration, Graph and SharePoint (Adapters__Mode=Simulation).
+# Requirements on your side: two app registrations exposing the audiences below, with the app
+# roles AgentPortifolio.Reader, .IncidentOperator, .PolicyAdmin and .Auditor on the control one.
+
+x-entra: &entra
+  Auth__Mode: Entra
+  Auth__Authority: https://login.microsoftonline.com/${AP_TENANT_ID}/v2.0
+  Auth__DevSigningKey: ""
+
+services:
+  control:
+    environment:
+      <<: *entra
+      Auth__Audience: ${AP_CONTROL_AUDIENCE:-api://agent-portifolio-control}
+  executor:
+    environment:
+      <<: *entra
+      Auth__Audience: ${AP_EXECUTOR_AUDIENCE:-api://agent-portifolio-executor}

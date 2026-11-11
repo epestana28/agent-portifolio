@@ -1,0 +1,71 @@
+# Local stack: SQL Server 2022 (ledger) + control API + policy executor + containment worker.
+#
+# Auth runs in DEVELOPMENT mode (local signing key) and the Microsoft side is SIMULATED.
+# This stack is for evaluation on a workstation. Do not expose it.
+# To validate real Entra tokens instead, see docker-compose.entra.yml.
+
+x-app: &app
+  image: ${AP_IMAGE:-ghcr.io/epestana28/agent-portifolio:latest}
+  build: .
+  restart: unless-stopped
+  depends_on:
+    sql:
+      condition: service_healthy
+
+x-env: &env
+  Storage__Provider: SqlServer
+  Storage__ConnectionString: "Server=sql,1433;Database=AgentPortifolio;User Id=sa;Password=${AP_SQL_PASSWORD:?define AP_SQL_PASSWORD in .env};Encrypt=True;TrustServerCertificate=True"
+  # Local stack only: the service creates its own database. In Azure this is infrastructure's job.
+  Storage__CreateDatabase: "true"
+  Adapters__Mode: Simulation
+  Auth__Mode: Development
+  Auth__DevSigningKey: ${AP_DEV_SIGNING_KEY:?define AP_DEV_SIGNING_KEY in .env}
+  Auth__AllowedTenants__0: ${AP_TENANT_ID:?define AP_TENANT_ID in .env}
+  # Simulated SharePoint library with one document, readable by the simulated executor identity.
+  Simulation__Libraries__0__SiteId: "contoso.sharepoint.com,11111111-1111-4111-8111-111111111111,22222222-2222-4222-8222-222222222222"
+  Simulation__Libraries__0__DriveId: "b!ApprovedDrive"
+  Simulation__Libraries__0__GrantedExecutors__0: ${AP_EXECUTOR_OBJECT_ID:-0e0e0e0e-0000-4000-8000-000000000001}
+  Simulation__Libraries__0__Documents__0__ItemId: "01ITEM"
+  Simulation__Libraries__0__Documents__0__Name: "politica-de-ferias.txt"
+  Simulation__Libraries__0__Documents__0__Text: "Texto do documento aprovado (simulado)."
+
+services:
+  sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${AP_SQL_PASSWORD:?define AP_SQL_PASSWORD in .env}
+    volumes:
+      - sqldata:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' -b -o /dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  control:
+    <<: *app
+    environment:
+      <<: *env
+      AP_SERVICE: control
+    ports:
+      - "127.0.0.1:8081:8080"
+
+  executor:
+    <<: *app
+    environment:
+      <<: *env
+      AP_SERVICE: executor
+    ports:
+      - "127.0.0.1:8082:8080"
+
+  worker:
+    <<: *app
+    environment:
+      <<: *env
+      AP_SERVICE: worker
+
+volumes:
+  sqldata:
