@@ -96,7 +96,7 @@ public sealed class TestWorld
         var external = Environment.AddGrant(executor, "Sites.Selected", Approved.Canonical, "read");
 
         var agent = await Control.RegisterAsync(AdminA, new RegisterAgentCommand(IdentityType.EntraAgentId, identity, blueprintId, executor,
-            "container-app/pilot", "consultar_documentos_aprovados", Guid.NewGuid(), null, "owner@example.invalid", maxActionsPerHour,
+            "container-app/pilot", "read_approved_documents", Guid.NewGuid(), null, "owner@example.invalid", maxActionsPerHour,
             Time.GetUtcNow().AddDays(30)), "test", default);
         await Control.SubmitForReviewAsync(AdminA, agent.Id, "test", default);
         await Control.ApproveAsync(AdminB, agent.Id, "test", default);

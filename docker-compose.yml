@@ -26,8 +26,8 @@ x-env: &env
   Simulation__Libraries__0__DriveId: "b!ApprovedDrive"
   Simulation__Libraries__0__GrantedExecutors__0: ${AP_EXECUTOR_OBJECT_ID:-0e0e0e0e-0000-4000-8000-000000000001}
   Simulation__Libraries__0__Documents__0__ItemId: "01ITEM"
-  Simulation__Libraries__0__Documents__0__Name: "politica-de-ferias.txt"
-  Simulation__Libraries__0__Documents__0__Text: "Texto do documento aprovado (simulado)."
+  Simulation__Libraries__0__Documents__0__Name: "holiday-policy.txt"
+  Simulation__Libraries__0__Documents__0__Text: "Text of the approved document (simulated)."
 
 services:
   sql:

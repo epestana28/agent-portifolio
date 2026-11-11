@@ -1,132 +1,132 @@
-# 04. Break-glass: contenção com a aplicação indisponível
+# 04. Break-glass: containment with the application unavailable
 
-Estado deste runbook: escrito a partir da documentação oficial, sem tenant. Nunca executado. Até ser ensaiado nas fases C e D com a aplicação desligada, o teste BT-20 não está provado.
+Status of this runbook: written from the official documentation, without a tenant. Never executed. Until it is rehearsed in phases C and D with the application switched off, test BT-20 is not proven.
 
-## Objectivo
+## Objective
 
-Conter um agente directamente nos serviços Microsoft, sem usar a Control API, a base de dados, a fila nem qualquer componente desta aplicação.
+Contain an agent directly in the Microsoft services, without using the Control API, the database, the queue or any component of this application.
 
-Este runbook é independente da aplicação de propósito. Se a Control API, o SQL, o APIM, o Service Bus ou o Entra da própria aplicação falharem, o procedimento continua a funcionar. Só depende de contas e papéis Microsoft que existem fora da aplicação.
+This runbook is independent of the application on purpose. If the Control API, the SQL, the APIM, the Service Bus or the application's own Entra fail, the procedure keeps working. It depends only on Microsoft accounts and roles that exist outside the application.
 
-Ordem de acção, da mais específica para a mais ampla: desactivar a identidade do agente, remover o grant no recurso, parar o runtime. Políticas de âmbito tenant só em último caso.
+Order of action, from the most specific to the broadest: disable the agent identity, remove the grant on the resource, stop the runtime. Tenant-scope policies only as a last resort.
 
-## Quem pode executar
+## Who can run this
 
-Pessoas com papéis Microsoft atribuídos fora desta aplicação e aprovados pela organização. Segundo a documentação:
+People with Microsoft roles assigned outside this application and approved by the organisation. According to the documentation:
 
-| Acção | Papel que a documentação indica |
+| Action | Role that the documentation indicates |
 | --- | --- |
-| Desactivar ou reactivar uma agent identity | Agent ID Administrator, ou Cloud Application Administrator. Os donos da identidade podem gerir os seus próprios agentes. |
-| Desactivar o sign-in de um service principal | Cloud Application Administrator, Application Administrator, ou dono do service principal. |
-| Desactivar um agent user | Permissão `User.EnableDisableAccount.All` com `User.Read.All` (Graph). O papel administrativo não vem indicado na página. |
-| Remover um grant Selected no site | Aplicação com `Sites.FullControl.All`. Delegado não é suportado nesta operação. |
-| Remover uma atribuição de papel de aplicação no Exchange | Membro do role group Organization Management, e Exchange Administrator no Entra. |
-| Parar ou isolar o runtime | Papel Azure sobre o runtime. Não verificado. Confirmar na documentação actual. |
+| Disable or reactivate an agent identity | Agent ID Administrator, or Cloud Application Administrator. The owners of the identity can manage their own agents. |
+| Disable the sign-in of a service principal | Cloud Application Administrator, Application Administrator, or owner of the service principal. |
+| Disable an agent user | Permission `User.EnableDisableAccount.All` with `User.Read.All` (Graph). The administrative role is not stated on the page. |
+| Remove a Selected grant on the site | Application with `Sites.FullControl.All`. Delegated is not supported for this operation. |
+| Remove an application role assignment in Exchange | Member of the Organization Management role group, and Exchange Administrator in Entra. |
+| Stop or isolate the runtime | Azure role on the runtime. Not verified. Confirm in the current documentation. |
 
-Contas e sessões de break-glass têm de ser acessíveis sem depender desta aplicação: não guardar as credenciais no Key Vault da aplicação, nem exigir o gateway, nem a identidade de controlo.
+Break-glass accounts and sessions must be reachable without depending on this application: do not store the credentials in the application's Key Vault, and do not require the gateway or the control identity.
 
-## Pré-requisitos
+## Prerequisites
 
-1. Decisão de contenção tomada por quem tem autoridade, e ticket (mesmo que aberto depois, em incidente).
-2. Identificadores do agente, recolhidos antes do incidente e guardados fora da aplicação: `object_id` da identidade, `appId`, tipo de identidade (Entra Agent ID, managed identity ou service principal), blueprint, conta de utilizador associada, recursos e grants (com `permissionId` quando for Selected), e runtime. Se a base de dados estiver acessível, o registo `ExternalGrant` tem estes dados. Se não estiver, usar a cópia fora da aplicação.
-3. Uma pessoa com acesso a esta lista e outra que conheça este runbook.
-4. Uma conta com os papéis da tabela acima, testada nos últimos ensaios.
-5. Saber o âmbito: um agente. Desactivar um blueprint ou o tenant exige âmbito visível, impacto e aprovação distintos.
+1. Containment decision taken by someone with authority, and a ticket (even if opened afterwards, during an incident).
+2. Identifiers of the agent, collected before the incident and stored outside the application: `object_id` of the identity, `appId`, identity type (Entra Agent ID, managed identity or service principal), blueprint, associated user account, resources and grants (with `permissionId` when it is Selected), and runtime. If the database is accessible, the `ExternalGrant` record has this data. If it is not, use the copy kept outside the application.
+3. One person with access to this list and another who knows this runbook.
+4. An account with the roles in the table above, tested in the latest rehearsals.
+5. Know the scope: one agent. Disabling a blueprint or the tenant requires a distinct visible scope, impact analysis and approval.
 
-## Passos
+## Steps
 
-Fazer os passos pela ordem. Registar cada acção e hora antes de passar à seguinte.
+Do the steps in order. Record each action and its time before moving to the next.
 
-### A. Desactivar a identidade do agente
+### A. Disable the agent identity
 
-1. Identificar o tipo da identidade.
-2. Entra Agent ID (agent identity): no centro de administração do Entra, desactivar a agent identity específica, não o blueprint. A documentação diz que isto bloqueia o acesso e a emissão de tokens desse agente e que se pode reverter. Páginas: https://learn.microsoft.com/en-us/entra/agent-id/disable-agent-identities e https://learn.microsoft.com/en-us/entra/agent-id/manage-agent-identities-admin
-3. Alternativa por API: `PATCH /servicePrincipals/{id}/microsoft.graph.agentIdentity`, permissão `AgentIdentity.EnableDisable.All`, Graph v1.0. O corpo com `accountEnabled` falso é inferência: nenhuma página de referência mostra o exemplo. Confirmar na documentação actual antes de executar. Página: https://learn.microsoft.com/en-us/graph/api/agentidentity-update?view=graph-rest-1.0
-4. Se o agente tem conta de utilizador associada (agent user): desactivar também, e revogar as sessões. Páginas: https://learn.microsoft.com/en-us/graph/api/agentuser-update?view=graph-rest-1.0 e https://learn.microsoft.com/en-us/graph/api/user-revokesigninsessions?view=graph-rest-1.0 (`POST /users/{id}/revokeSignInSessions`, permissão `User.RevokeSessions.All`). A aplicação da revogação de sessões a agent users é inferência. A desactivação em cascata do agent user a partir da agent identity não está verificada: tratar como dois passos.
-5. Service principal de aplicação: `PATCH https://graph.microsoft.com/v1.0/servicePrincipals/{id}` com `{"accountEnabled": false}`, permissão `Application.ReadWrite.All`. A documentação diz que isto impede a emissão de tokens nesse tenant. Página: https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/disable-user-sign-in-portal
-6. Managed identity: não existe procedimento verificado de desactivação por `accountEnabled`. Não eliminar a identidade como primeira acção. Ir aos passos B e C. Confirmar na documentação actual se há mecanismo de desactivação. Página sobre limites: https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/managed-identities-faq
-7. Agentes com Agent 365: se a organização usa o bloqueio do centro de administração do Microsoft 365, usá-lo também. Se altera o estado no Entra: não verificado. Fazer ambos os bloqueios.
-8. Não aplicar nesta fase as três políticas de Conditional Access de âmbito tenant, nem desactivar um blueprint, sem aprovação distinta. A documentação diz que as políticas não impedem a criação de identidades, e que os requisitos de licença se contradizem entre páginas. Fica como último recurso, com análise de impacto.
+1. Identify the identity type.
+2. Entra Agent ID (agent identity): in the Entra admin centre, disable the specific agent identity, not the blueprint. The documentation says that this blocks access and token issuance for that agent and that it can be reverted. Pages: https://learn.microsoft.com/en-us/entra/agent-id/disable-agent-identities and https://learn.microsoft.com/en-us/entra/agent-id/manage-agent-identities-admin
+3. Alternative through the API: `PATCH /servicePrincipals/{id}/microsoft.graph.agentIdentity`, permission `AgentIdentity.EnableDisable.All`, Graph v1.0. The body with `accountEnabled` false is inference: no reference page shows the example. Confirm in the current documentation before executing. Page: https://learn.microsoft.com/en-us/graph/api/agentidentity-update?view=graph-rest-1.0
+4. If the agent has an associated user account (agent user): disable it too, and revoke the sessions. Pages: https://learn.microsoft.com/en-us/graph/api/agentuser-update?view=graph-rest-1.0 and https://learn.microsoft.com/en-us/graph/api/user-revokesigninsessions?view=graph-rest-1.0 (`POST /users/{id}/revokeSignInSessions`, permission `User.RevokeSessions.All`). The application of session revocation to agent users is inference. Cascading disablement of the agent user from the agent identity is not verified: treat it as two steps.
+5. Application service principal: `PATCH https://graph.microsoft.com/v1.0/servicePrincipals/{id}` with `{"accountEnabled": false}`, permission `Application.ReadWrite.All`. The documentation says that this prevents token issuance in that tenant. Page: https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/disable-user-sign-in-portal
+6. Managed identity: there is no verified procedure for disabling through `accountEnabled`. Do not delete the identity as a first action. Go to steps B and C. Confirm in the current documentation whether there is a disabling mechanism. Page on limits: https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/managed-identities-faq
+7. Agents with Agent 365: if the organisation uses the block in the Microsoft 365 admin centre, use it too. Whether it changes the state in Entra: not verified. Apply both blocks.
+8. Do not apply the three tenant-scope Conditional Access policies in this phase, and do not disable a blueprint, without distinct approval. The documentation says that the policies do not prevent the creation of identities, and that the licence requirements contradict each other between pages. It remains a last resort, with impact analysis.
 
-### B. Remover o grant no recurso
+### B. Remove the grant on the resource
 
-1. SharePoint, grant Selected ao nível do site: `DELETE /sites/{sitesId}/permissions/{permissionId}`, Graph v1.0, só aplicação, `Sites.FullControl.All`. Resposta esperada: 204 sem corpo. Página: https://learn.microsoft.com/graph/api/site-delete-permission?view=graph-rest-1.0
-2. Lista ou item: a documentação encontrada só mostra a versão beta, e o caminho do item parece incompleto. Confirmar na documentação actual antes de executar. Página: https://learn.microsoft.com/graph/api/list-delete-permissions?view=graph-rest-beta
-3. Se não se conhece o `permissionId` e a aplicação está em baixo: a listagem de permissões não foi verificada. Alternativa documentada: revogar o consentimento da aplicação no Entra, que bloqueia o acesso a qualquer lista que tivesse grant. O papel administrativo para o consentimento não foi verificado. Página: https://learn.microsoft.com/en-us/graph/permissions-selected-overview
-4. Atenção: remover um consentimento de nível superior (`Sites.*`) não retira um acesso dado por um nível inferior (`Lists.*`). Rever os níveis.
-5. Exchange (fase posterior): `Remove-ManagementRoleAssignment` e, se existirem permissões Entra amplas, retirá-las também, porque os grants somam-se. Página: https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac
-6. Azure RBAC: retirar as atribuições de papel da identidade nos recursos. A documentação diz que alguns sistemas, como o Azure RBAC, continuam a aceitar o token até expirar. Página: https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/managed-identities-faq
+1. SharePoint, Selected grant at site level: `DELETE /sites/{sitesId}/permissions/{permissionId}`, Graph v1.0, application only, `Sites.FullControl.All`. Expected response: 204 with no body. Page: https://learn.microsoft.com/graph/api/site-delete-permission?view=graph-rest-1.0
+2. List or item: the documentation found shows only the beta version, and the item path seems incomplete. Confirm in the current documentation before executing. Page: https://learn.microsoft.com/graph/api/list-delete-permissions?view=graph-rest-beta
+3. If the `permissionId` is not known and the application is down: the permissions listing was not verified. Documented alternative: revoke the application's consent in Entra, which blocks access to any list that had a grant. The administrative role for the consent was not verified. Page: https://learn.microsoft.com/en-us/graph/permissions-selected-overview
+4. Warning: removing a higher-level consent (`Sites.*`) does not remove access given by a lower level (`Lists.*`). Review the levels.
+5. Exchange (later phase): `Remove-ManagementRoleAssignment` and, if broad Entra permissions exist, remove those too, because grants are additive. Page: https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac
+6. Azure RBAC: remove the role assignments of the identity on the resources. The documentation says that some systems, such as Azure RBAC, keep accepting the token until it expires. Page: https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/managed-identities-faq
 
-### C. Parar o runtime
+### C. Stop the runtime
 
-1. Parar ou isolar o runtime onde o agente executa (Azure Container Apps no piloto). O comando concreto não foi verificado nesta pesquisa: confirmar na documentação actual antes de executar.
-2. O objectivo é o agente deixar de correr, para que deixe de usar a credencial que já tem. Inferência, por validar em ensaio: parar o processo impede que ele continue a usar tokens que tenha em memória, o que as acções dos passos A e B não fazem.
-3. Não parar a Control API nem o executor nesta fase se não for necessário: o objectivo é conter o agente, e a aplicação pode voltar a ser útil mais tarde para reconciliar. Só o fazer por decisão expressa.
-4. Se a decisão for fechar o tráfego do agente no gateway, fazê-lo no APIM pelo método aprovado. O comando não foi verificado.
+1. Stop or isolate the runtime where the agent runs (Azure Container Apps in the pilot). The concrete command was not verified in this research: confirm in the current documentation before executing.
+2. The goal is for the agent to stop running, so that it stops using the credential it already has. Inference, to be validated in rehearsal: stopping the process prevents it from continuing to use tokens it holds in memory, which the actions in steps A and B do not do.
+3. Do not stop the Control API or the executor in this phase if it is not necessary: the goal is to contain the agent, and the application may be useful again later for reconciling. Do it only by express decision.
+4. If the decision is to close the agent's traffic at the gateway, do it in the APIM by the approved method. The command was not verified.
 
-### D. Verificar
+### D. Verify
 
-1. Registos de início de sessão do Entra para a identidade do agente: depois da hora da desactivação, não deve haver emissão de tokens novos. A documentação mostra consulta em Graph beta a `auditLogs/signIns` com filtro por tipo de agente. Confirmar o pedido exacto na página de gestão. Página: https://learn.microsoft.com/en-us/entra/agent-id/manage-agent-identities-admin
-2. Em ambiente de teste: pedido de teste ao recurso com a identidade do agente (ou com um token novo para a mesma) deve falhar.
-3. Um token emitido antes da desactivação pode continuar válido até expirar. Medir e registar o intervalo real em ensaio (teste BT-14). Pior caso documentado para access token: 60 a 90 minutos por omissão, cache de managed identity de cerca de 24 horas.
-4. Registar o que ficou por verificar como `desconhecido`.
+1. Entra sign-in logs for the agent identity: after the time of disablement, there must be no issuance of new tokens. The documentation shows a query in Graph beta against `auditLogs/signIns` with a filter by agent type. Confirm the exact request on the management page. Page: https://learn.microsoft.com/en-us/entra/agent-id/manage-agent-identities-admin
+2. In a test environment: a test request to the resource with the identity of the agent (or with a new token for the same one) must fail.
+3. A token issued before the disablement may remain valid until it expires. Measure and record the real interval in rehearsal (test BT-14). Documented worst case for an access token: 60 to 90 minutes by default, managed identity cache of about 24 hours.
+4. Record what remained unverified as `unknown`.
 
-### E. Reconciliar quando a aplicação voltar
+### E. Reconcile when the application returns
 
-1. Suspender o agente na Control API (runbook 01) para o estado local coincidir com a contenção feita à mão.
-2. Registar na auditoria, por pessoa autorizada, o que foi feito fora da aplicação: acção, serviço, hora, quem. A aplicação não sabe o que se fez sem esse registo.
-3. Reconciliar os grants observados com os registados.
-4. Reactivar só pelo runbook 03.
+1. Suspend the agent in the Control API (runbook 01) so that the local state matches the containment done by hand.
+2. Record in the audit trail, by an authorised person, what was done outside the application: action, service, time, who. The application does not know what was done without this record.
+3. Reconcile the observed grants with the registered ones.
+4. Reactivate only through runbook 03.
 
-## Ensaio periódico
+## Periodic rehearsal
 
-O break-glass só conta se for ensaiado. O ensaio é a evidência do teste BT-20 e só se faz nas fases C e D, com recursos de teste.
+Break-glass only counts if it is rehearsed. The rehearsal is the evidence for test BT-20 and is done only in phases C and D, with test resources.
 
-1. Periodicidade: definida e aprovada pela organização. Este runbook não fixa valor. Repetir também depois de qualquer alteração de papéis, de tenant ou do runtime.
-2. Quem ensaia: uma pessoa independente de quem escreveu o runbook, a partir do documento, sem ajuda.
-3. Como: com um agente de teste e um recurso de teste, desligar a aplicação (control-api, executor e worker, ou a parte que a organização aprovar) e executar os passos A a D. Cronometrar cada passo.
-4. O que registar: tempo de cada passo, papéis usados, erros, passos que o texto não permitiu seguir, e se o recurso de teste ficou inacessível ao agente. Registar o tempo até à recusa efectiva e o comportamento de tokens anteriores.
-5. Depois do ensaio: reactivar o agente de teste pelo runbook 03 e corrigir este runbook com o que falhou.
-6. Verificar também que as contas de break-glass entram e têm os papéis certos. Um ensaio que falha por falta de acesso é um resultado útil.
+1. Frequency: defined and approved by the organisation. This runbook does not set a value. Repeat also after any change of roles, tenant or runtime.
+2. Who rehearses: a person independent of whoever wrote the runbook, working from the document, without help.
+3. How: with a test agent and a test resource, switch off the application (control-api, executor and worker, or the part that the organisation approves) and execute steps A to D. Time each step.
+4. What to record: time of each step, roles used, errors, steps that the text did not allow to be followed, and whether the test resource became inaccessible to the agent. Record the time until the effective refusal and the behaviour of previous tokens.
+5. After the rehearsal: reactivate the test agent through runbook 03 and correct this runbook with whatever failed.
+6. Also verify that the break-glass accounts sign in and have the right roles. A rehearsal that fails for lack of access is a useful result.
 
-## Como verificar (resumo)
+## How to verify (summary)
 
-1. A identidade do agente está desactivada, ou o acesso removido, segundo o tipo.
-2. O grant do recurso foi removido e um pedido de teste falha.
-3. O runtime está parado.
-4. Os registos de início de sessão não mostram emissão nova.
-5. O que não foi possível verificar ficou escrito como desconhecido.
+1. The identity of the agent is disabled, or access is removed, according to the type.
+2. The grant on the resource was removed and a test request fails.
+3. The runtime is stopped.
+4. The sign-in logs show no new issuance.
+5. What could not be verified was written down as unknown.
 
-## Evidência a registar
+## Evidence to record
 
-- Quem decidiu, quem executou, ticket, horas UTC de cada acção.
-- Identificadores da identidade, do grant e do recurso afectados.
-- Pedido e resposta de cada acção, sem tokens, segredos nem conteúdo de documentos. Para acções no centro de administração, uma nota do que foi feito e a hora.
-- Resultado das verificações e o que ficou desconhecido.
-- No ensaio: tempos, falhas do texto e correcções.
+- Who decided, who executed, ticket, UTC time of each action.
+- Identifiers of the identity, of the grant and of the resource affected.
+- Request and response of each action, without tokens, secrets or document content. For actions in the admin centre, a note of what was done and the time.
+- Result of the verifications and what remained unknown.
+- In the rehearsal: times, failures of the text and corrections.
 
-## Limites conhecidos
+## Known limits
 
-- Desactivar a identidade e bloquear a emissão não garantem invalidar os access tokens já emitidos. A documentação de Agent ID não diz o que acontece aos tokens já emitidos a uma agent identity desactivada.
-- CAE não é garantia universal. Cobre eventos sobre utilizadores e, para workload identities, só o Microsoft Graph, service principals single-tenant e clientes que declaram suporte. Managed identities não são suportadas. Se uma agent identity é abrangida: não verificado.
-- Managed identity: não se força a renovação de token, a cache ronda 24 horas, e as alterações de permissões podem demorar horas a fazer efeito. Eliminar a identidade não invalida tokens já emitidos até à expiração original.
-- URL pré-autenticado de descarga: pode continuar válido até uma hora depois de retirado o acesso.
-- Exchange: 30 minutos a 2 horas de propagação, e o cmdlet de teste ignora a cache.
-- Conditional Access não cobre managed identities, nem o blueprint a criar identidades, nem o acesso por chave de API fora do Entra.
-- Agentes antigos do Copilot Studio ou Foundry podem existir como service principals sem agent identity. Não se aplicam os passos de agent identity a esses.
-- Se um passo mostra "confirmar na documentação actual", não executar a partir deste texto sem o confirmar.
-- Não se desactiva em cascata o que não foi pedido: desactivar uma agent identity não deve afectar identidades irmãs do blueprint (BT-13), e isto só se confirma em tenant.
-- Dados já exfiltrados e operações já aceites por serviços externos não se anulam.
+- Disabling the identity and blocking issuance do not guarantee invalidating the access tokens already issued. The Agent ID documentation does not say what happens to tokens already issued to a disabled agent identity.
+- CAE is not a universal guarantee. It covers events on users and, for workload identities, only Microsoft Graph, single-tenant service principals and clients that declare support. Managed identities are not supported. Whether an agent identity is covered: not verified.
+- Managed identity: token refresh cannot be forced, the cache is around 24 hours, and permission changes may take hours to take effect. Deleting the identity does not invalidate already issued tokens until their original expiry.
+- Pre-authenticated download URL: may remain valid for up to one hour after access is removed.
+- Exchange: 30 minutes to 2 hours of propagation, and the test cmdlet ignores the cache.
+- Conditional Access does not cover managed identities, nor the blueprint creating identities, nor access by API key outside Entra.
+- Old Copilot Studio or Foundry agents may exist as service principals without an agent identity. The agent identity steps do not apply to those.
+- If a step shows "confirm in the current documentation", do not execute it from this text without confirming.
+- What was not requested is not disabled in cascade: disabling an agent identity must not affect sibling identities of the blueprint (BT-13), and this can only be confirmed in a tenant.
+- Data already exfiltrated and operations already accepted by external services cannot be undone.
 
-## Documentação oficial (verificada a 2026-11-11)
+## Official documentation (verified on 2026-11-11)
 
-- Desactivar identidades de agente: https://learn.microsoft.com/en-us/entra/agent-id/disable-agent-identities
-- Gerir identidades de agente: https://learn.microsoft.com/en-us/entra/agent-id/manage-agent-identities-admin
-- Graph, actualizar agent identity: https://learn.microsoft.com/en-us/graph/api/agentidentity-update?view=graph-rest-1.0
-- Graph, actualizar agent user: https://learn.microsoft.com/en-us/graph/api/agentuser-update?view=graph-rest-1.0
-- Graph, revogar sessões: https://learn.microsoft.com/en-us/graph/api/user-revokesigninsessions?view=graph-rest-1.0
-- Desactivar sign-in de service principal: https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/disable-user-sign-in-portal
-- Managed identities, perguntas frequentes: https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/managed-identities-faq
+- Disable agent identities: https://learn.microsoft.com/en-us/entra/agent-id/disable-agent-identities
+- Manage agent identities: https://learn.microsoft.com/en-us/entra/agent-id/manage-agent-identities-admin
+- Graph, update agent identity: https://learn.microsoft.com/en-us/graph/api/agentidentity-update?view=graph-rest-1.0
+- Graph, update agent user: https://learn.microsoft.com/en-us/graph/api/agentuser-update?view=graph-rest-1.0
+- Graph, revoke sessions: https://learn.microsoft.com/en-us/graph/api/user-revokesigninsessions?view=graph-rest-1.0
+- Disable sign-in of a service principal: https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/disable-user-sign-in-portal
+- Managed identities, frequently asked questions: https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/managed-identities-faq
 - Selected permissions: https://learn.microsoft.com/en-us/graph/permissions-selected-overview
 - Exchange, RBAC for Applications: https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac
-- Revogar acesso: https://learn.microsoft.com/en-us/entra/identity/users/users-revoke-access
+- Revoke access: https://learn.microsoft.com/en-us/entra/identity/users/users-revoke-access

@@ -26,8 +26,10 @@
   <div class="diagram">
     <svg width="1200" height="700" style="border: 1px solid #e5e7eb; border-radius: 4px; background: white;">
       <defs>
+        <marker id="arrowhead-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><polygon points="0 0, 10 3, 0 6" fill="#10b981"/></marker>
         <marker id="arrowhead-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><polygon points="0 0, 10 3, 0 6" fill="#3b82f6"/></marker>
         <marker id="arrowhead-amber" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><polygon points="0 0, 10 3, 0 6" fill="#f59e0b"/></marker>
+        <marker id="arrowhead-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><polygon points="0 0, 10 3, 0 6" fill="#ef4444"/></marker>
         <marker id="arrowhead-purple" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><polygon points="0 0, 10 3, 0 6" fill="#8b5cf6"/></marker>
       </defs>
       
@@ -89,15 +91,22 @@
       <text x="1020" y="75" font-size="11" font-weight="700" fill="#f59e0b">Containment Orch.</text>
       <text x="1020" y="92" font-size="10" fill="#374151">4 parallel steps</text>
       
-      <!-- Flow arrows -->
-      <line x1="470" y1="120" x2="590" y2="120" stroke="#3b82f6" stroke-width="2.5" marker-end="url(#arrowhead-blue)"/>
-      <text x="510" y="140" font-size="10" fill="#3b82f6" font-weight="600">request</text>
-      
-      <line x1="350" y1="250" x2="840" y2="120" stroke="#ef4444" stroke-width="2.5" marker-end="url(#arrowhead-blue)"/>
-      <text x="560" y="180" font-size="10" fill="#ef4444" font-weight="600">suspend (atomic TX)</text>
-      
-      <line x1="680" y1="270" x2="500" y2="390" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arrowhead-purple)"/>
-      <text x="600" y="330" font-size="10" fill="#8b5cf6" font-weight="600">record to storage</text>
+      <!-- Flow arrows: short, orthogonal, routed through free bands, never across a box -->
+      <!-- control plane -->
+      <line x1="110" y1="120" x2="110" y2="150" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrowhead-blue)"/>
+      <line x1="190" y1="170" x2="210" y2="170" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrowhead-blue)"/>
+      <!-- data plane: token to executor, executor to authorisation engine -->
+      <line x1="560" y1="90" x2="590" y2="90" stroke="#10b981" stroke-width="2" marker-end="url(#arrowhead-green)"/>
+      <line x1="690" y1="120" x2="690" y2="150" stroke="#10b981" stroke-width="2" marker-end="url(#arrowhead-green)"/>
+      <!-- worker plane -->
+      <line x1="990" y1="90" x2="1010" y2="90" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrowhead-amber)"/>
+      <line x1="1085" y1="120" x2="1085" y2="150" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrowhead-amber)"/>
+      <!-- suspension: control service, down, across the free band, up the gap between planes, into the outbox -->
+      <polyline points="280,180 280,290 805,290 805,90 840,90" fill="none" stroke="#ef4444" stroke-width="2.5" marker-end="url(#arrowhead-red)"/>
+      <text x="520" y="282" font-size="11" fill="#ef4444" font-weight="600">suspend (one atomic transaction)</text>
+      <!-- decision and audit event into the ledger -->
+      <line x1="505" y1="230" x2="505" y2="390" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arrowhead-purple)"/>
+      <text x="515" y="347" font-size="11" fill="#8b5cf6" font-weight="600">decision + audit event</text>
     </svg>
   </div>
   
@@ -133,12 +142,12 @@
   <div class="section">
     <div class="section-title">Key Principles</div>
     <div class="box green">
-      <strong>✓ Deterministic Authorization</strong> — No I/O in the AuthZ Engine. Same inputs always produce the same decision.<br><br>
-      <strong>✓ Three-Transaction Pipeline</strong> — TX1 (admit), TX2 (execute), TX3 (audit). Each can fail independently, state stays consistent.<br><br>
-      <strong>✓ Fail-Closed</strong> — If state unavailable, respond 403 Denied. Never cache positive decisions.<br><br>
-      <strong>✓ Ledger is Native</strong> — SQL Server LEDGER=ON, not custom blockchain. UPDATE/DELETE rejected by the engine.<br><br>
-      <strong>✓ Honest Containment</strong> — Each external step has an honest state. Unknown if uncertain, never assume success.<br><br>
-      <strong>✓ Atomic Suspension</strong> — Revocation epoch, containment, and audit all in one TX.
+      <strong>✓ Deterministic Authorization</strong>: No I/O in the AuthZ Engine. Same inputs always produce the same decision.<br><br>
+      <strong>✓ Three-Transaction Pipeline</strong>: TX1 (admit), TX2 (execute), TX3 (audit). Each can fail independently, state stays consistent.<br><br>
+      <strong>✓ Fail-Closed</strong>: If state unavailable, respond 403 Denied. Never cache positive decisions.<br><br>
+      <strong>✓ Ledger is Native</strong>: SQL Server LEDGER=ON, not custom blockchain. UPDATE/DELETE rejected by the engine.<br><br>
+      <strong>✓ Honest Containment</strong>: Each external step has an honest state. Unknown if uncertain, never assume success.<br><br>
+      <strong>✓ Atomic Suspension</strong>: Revocation epoch, containment, and audit all in one TX.
     </div>
   </div>
   

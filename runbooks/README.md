@@ -1,47 +1,47 @@
-# Runbooks operacionais
+# Operational runbooks
 
-Procedimentos para uma pessoa independente seguir. Cada runbook tem objectivo, quem pode executar, pré-requisitos, passos numerados, como verificar, evidência a registar e limites conhecidos.
+Procedures for an independent person to follow. Each runbook has an objective, who can run it, prerequisites, numbered steps, how to verify, evidence to record and known limits.
 
-## Estado real
+## Actual status
 
-Fase A (documentos de validação): escrita a partir de documentação oficial, sem tenant. Fase B (fatia vertical local): implementada em .NET 8, sem credenciais reais, com o mundo Microsoft simulado. Fases C, D e E: não executadas. O Bicep está escrito e nunca foi aplicado. Não existe adaptador real para Entra nem para Graph.
+Phase A (validation documents): written from official documentation, without a tenant. Phase B (local vertical slice): implemented in .NET 8, without real credentials, with the Microsoft world simulated. Phases C, D and E: not executed. The Bicep is written and has never been applied. There is no real adapter for Entra or for Graph.
 
-Por isso, nenhum destes runbooks foi executado contra serviços Microsoft reais. Os passos Microsoft descrevem a acção e apontam a página oficial, e usam só endpoints e cmdlets que a pesquisa verificou em Microsoft Learn a 2026-11-11. Onde a pesquisa não verificou, o texto diz "confirmar na documentação actual antes de executar". Não executar esses passos sem o confirmar.
+For this reason, none of these runbooks has been executed against real Microsoft services. The Microsoft steps describe the action and point to the official page, and they use only endpoints and cmdlets that the research verified in Microsoft Learn on 2026-11-11. Where the research did not verify them, the text says "confirm in the current documentation before executing". Do not execute those steps without confirming.
 
-Os passos que dizem "inferência" são conclusões a partir de factos verificados e não estão escritos na documentação. Os que dizem "por validar" dependem do tenant.
+The steps that say "inference" are conclusions drawn from verified facts and are not written in the documentation. The ones that say "to be validated" depend on the tenant.
 
-## Índice
+## Index
 
-| Runbook | Quando usar | Papel |
+| Runbook | When to use | Role |
 | --- | --- | --- |
-| [01. Suspender um agente](01-suspender-agente.md) | Incidente com um agente. Bloqueio local imediato e acompanhamento da contenção externa. | `IncidentOperator` |
-| [02. Revogar uma capacidade](02-revogar-capacidade.md) | Retirar uma capacidade de um agente sem o suspender. | `IncidentOperator` ou `PolicyAdmin` |
-| [03. Reactivar um agente](03-reactivar-agente.md) | Depois de uma suspensão tratada. Dois `PolicyAdmin` distintos, grants reverificados, capacidades reemitidas. | Dois `PolicyAdmin` |
-| [04. Break-glass](04-break-glass.md) | A aplicação está indisponível. Contenção directa nos serviços Microsoft, independente da aplicação. Ensaio periódico. | Administradores Microsoft fora da aplicação |
-| [05. Verificar a ledger e os digests](05-verificar-ledger-e-digests.md) | Verificação periódica, depois de restauro, ou suspeita de adulteração. | `Auditor` |
-| [06. Restauro e failover](06-restauro-e-failover.md) | Depois de restauro ou failover da base de dados. Não reabrir tráfego antes de reconciliar. | Operações, `PolicyAdmin`, `Auditor` |
-| [07. Repetir os testes de contenção](07-repetir-testes-de-contencao.md) | Repetir localmente os testes BT-01 a BT-20 e saber quais só se provam nas fases C e D. | Engenheiro |
+| [01. Suspend an agent](01-suspend-agent.md) | Incident with an agent. Immediate local block and follow-up of the external containment. | `IncidentOperator` |
+| [02. Revoke a capability](02-revoke-capability.md) | Remove a capability from an agent without suspending it. | `IncidentOperator` or `PolicyAdmin` |
+| [03. Reactivate an agent](03-reactivate-agent.md) | After a suspension has been handled. Two distinct `PolicyAdmin`, grants reverified, capabilities reissued. | Two `PolicyAdmin` |
+| [04. Break-glass](04-break-glass.md) | The application is unavailable. Direct containment in the Microsoft services, independent of the application. Periodic rehearsal. | Microsoft administrators outside the application |
+| [05. Verify the ledger and the digests](05-verify-ledger-and-digests.md) | Periodic verification, after a restore, or suspected tampering. | `Auditor` |
+| [06. Restore and failover](06-restore-and-failover.md) | After a database restore or failover. Do not reopen traffic before reconciling. | Operations, `PolicyAdmin`, `Auditor` |
+| [07. Retest containment](07-retest-containment.md) | Repeat tests BT-01 to BT-20 locally and know which ones can only be proven in phases C and D. | Engineer |
 
-## Como escolher
+## How to choose
 
-1. A Control API responde? Se sim, runbook 01 para suspender. Se não, runbook 04.
-2. Só uma capacidade tem de sair, sem suspeita de comprometimento? Runbook 02.
-3. Voltar a pôr um agente em serviço? Runbook 03, sempre.
-4. Houve restauro ou failover? Runbook 06, e dentro dele o 05 antes de qualquer outra coisa.
-5. Suspeita de adulteração da auditoria? Runbook 05.
+1. Does the Control API respond? If yes, use runbook 01 to suspend. If not, use runbook 04.
+2. Does only one capability have to go, with no suspicion of compromise? Runbook 02.
+3. Putting an agent back into service? Runbook 03, always.
+4. Was there a restore or a failover? Runbook 06, and within it, 05 before anything else.
+5. Suspected tampering with the audit trail? Runbook 05.
 
-## Regras comuns
+## Common rules
 
-- Nunca registar tokens, segredos, prompts nem conteúdo de documentos em tickets, notas ou evidência.
-- Suspender não é conter. O estado do agente e o estado da contenção são separados. `Suspended` nunca passa sozinho a `VerifiedScoped`.
-- `VerifiedScoped` só vale para o âmbito explícito de cada passo. Nunca dizer "acesso universal revogado".
-- Desactivar uma identidade ou retirar um grant não garante invalidar tokens já emitidos. A documentação não dá essa garantia, e para agentes não diz o que acontece.
-- Um passo em estado desconhecido é desconhecido, não é sucesso.
-- O worker de contenção nunca reactiva um agente. A reactivação só se faz pelo runbook 03.
-- Acções já admitidas ou enviadas ao Microsoft Graph não se cancelam. Ficam registadas à parte, com o resultado que tiverem, incluindo desconhecido.
-- Antes de executar um passo de um serviço Microsoft marcado como "confirmar na documentação actual", confirmar.
+- Never record tokens, secrets, prompts or document content in tickets, notes or evidence.
+- Suspending is not containing. The agent state and the containment state are separate. `Suspended` never becomes `VerifiedScoped` on its own.
+- `VerifiedScoped` is valid only for the explicit scope of each step. Never say "universal access revoked".
+- Disabling an identity or removing a grant does not guarantee that already issued tokens are invalidated. The documentation gives no such guarantee, and for agents it does not say what happens.
+- A step in an unknown state is unknown, it is not a success.
+- The containment worker never reactivates an agent. Reactivation is done only through runbook 03.
+- Actions already admitted or sent to Microsoft Graph cannot be cancelled. They are recorded separately, with whatever result they have, including unknown.
+- Before executing a step on a Microsoft service marked "confirm in the current documentation", confirm.
 
-## Documentos relacionados
+## Related documents
 
-- Infraestrutura (Bicep, nunca aplicado): `../infra/bicep/README.md`
-- Especificação de origem: a especificação do projecto, secção 10 (suspensão e revogação), secção 11 (ledger) e secção 15 (testes bloqueantes)
+- Infrastructure (Bicep, never applied): `../infra/bicep/README.md`
+- Source specification: the project specification, section 10 (suspension and revocation), section 11 (ledger) and section 15 (blocking tests)

@@ -1,15 +1,15 @@
-# Segurança
+# Security
 
-## Estado
+## Status
 
-Este projecto é um protótipo. O lado Microsoft (Entra, Graph, SharePoint) está em simulação e o projecto não deve ser usado para proteger agentes em produção.
+This project is a prototype. The Microsoft side (Entra, Graph, SharePoint) is simulated, and the project must not be used to protect agents in production.
 
-## Comunicar uma vulnerabilidade
+## Reporting a vulnerability
 
-Não abra uma issue pública. Use "Report a vulnerability" no separador Security do repositório no GitHub, que cria um aviso privado. Descreva o impacto, os passos para reproduzir e a versão ou o commit.
+Do not open a public issue. Use "Report a vulnerability" in the Security tab of the GitHub repository, which creates a private advisory. Describe the impact, the steps to reproduce and the version or commit.
 
-## Âmbito
+## Scope
 
-Interessa em especial qualquer forma de: executar uma acção sem capacidade válida, executar depois de uma suspensão, obter uma decisão positiva com a base de estado indisponível, alterar ou apagar eventos de auditoria, agir sobre um agente de outro tenant, ou obter do executor uma credencial ou um URL pré-autenticado.
+Of particular interest is any way to: execute an action without a valid capability, execute after a suspension, obtain a positive decision while the state store is unavailable, change or delete audit events, act on an agent of another tenant, or obtain a credential or a pre-authenticated URL from the executor.
 
-O modo de autenticação `Development` e os tokens emitidos por `devtoken` existem só para a pilha local e estão fora de âmbito.
+The `Development` authentication mode and the tokens issued by `devtoken` exist only for the local stack and are out of scope.

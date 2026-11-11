@@ -1,71 +1,72 @@
-// Ambiente Container Apps e as três aplicações: control-api, policy-executor e containment-worker.
+// Container Apps environment and the three applications: control-api, policy-executor and
+// containment-worker.
 //
-// Cada aplicação usa a SUA identidade (user-assigned), criada em identities.bicep:
-// - control-api: identidade de controlo. Nunca é atribuída ao runtime do agente.
-// - policy-executor: detém a credencial de dados. O agente nunca a recebe.
-// - containment-worker: corre os adaptadores de contenção. Sem ingress.
+// Each application uses ITS OWN identity (user-assigned), created in identities.bicep:
+// - control-api: control identity. It is never assigned to the agent runtime.
+// - policy-executor: holds the data credential. The agent never receives it.
+// - containment-worker: runs the containment adapters. No ingress.
 //
-// Verificado em Microsoft Learn a 2026-11-11:
+// Verified in Microsoft Learn on 2026-11-11:
 // https://learn.microsoft.com/en-us/azure/templates/microsoft.app/2026-07-01/managedenvironments
 // https://learn.microsoft.com/en-us/azure/templates/microsoft.app/2026-07-01/containerapps
 // https://learn.microsoft.com/en-us/azure/container-apps/billing
 //
-// POR VALIDAR (resumo, o detalhe está junto de cada linha):
-// - formato do bloco `identity` das container apps (a pesquisa não o extraiu);
-// - `template.containers[]` (name, image, env), não extraído na pesquisa;
-// - restrição do ingress do executor ao APIM (ver nota no recurso);
-// - `listKeys()` do workspace para a configuração de registos;
-// - formato exacto da cadeia de ligação SQL com managed identity.
+// TO VALIDATE (summary, the detail is next to each line):
+// - format of the `identity` block of the container apps (the research did not extract it);
+// - `template.containers[]` (name, image, env), not extracted in the research;
+// - restriction of the executor ingress to APIM (see the note on the resource);
+// - `listKeys()` of the workspace for the log configuration;
+// - exact format of the SQL connection string with managed identity.
 
-@description('Região Azure.')
+@description('Azure region.')
 param location string
 
-@description('Prefixo de nomes, em minúsculas.')
+@description('Name prefix, in lower case.')
 param namePrefix string
 
-@description('Nome do workspace Log Analytics (criado em monitoring.bicep, no mesmo grupo de recursos).')
+@description('Name of the Log Analytics workspace (created in monitoring.bicep, in the same resource group).')
 param logAnalyticsWorkspaceName string
 
-@description('Imagem do contentor (única, com os três serviços). Sem segredos na referência.')
+@description('Container image (a single one, with the three services). No secrets in the reference.')
 param containerImage string
 
-@description('Servidor do registo de contentores. Vazio se a imagem for de um registo que não exige identidade.')
+@description('Container registry server. Empty if the image comes from a registry that does not require identity.')
 param registryServer string = ''
 
-@description('Porta do contentor. Tem de coincidir com a porta em que a imagem escuta.')
+@description('Container port. It must match the port the image listens on.')
 param targetPort int = 8080
 
-@description('Identificador do tenant Entra.')
+@description('Entra tenant identifier.')
 param tenantId string
 
-@description('Autoridade do emissor de tokens, por exemplo o ponto final do tenant.')
+@description('Token issuer authority, for example the tenant endpoint.')
 param authAuthority string
 
-@description('Audiência esperada pela control-api.')
+@description('Audience expected by the control-api.')
 param controlApiAudience string
 
-@description('Audiência esperada pelo policy-executor.')
+@description('Audience expected by the policy-executor.')
 param executorAudience string
 
-@description('Modo dos adaptadores (Adapters__Mode). Sem valor por omissão. O código aceita só `Simulation`.')
+@description('Adapters mode (Adapters__Mode). No default value. The code accepts only `Simulation`.')
 param adaptersMode string
 
-@description('FQDN do servidor SQL.')
+@description('FQDN of the SQL server.')
 param sqlServerFqdn string
 
-@description('Nome da base de dados.')
+@description('Name of the database.')
 param databaseName string
 
-@description('Identidade da control-api: id de recurso e clientId.')
+@description('Identity of the control-api: resource id and clientId.')
 param controlIdentity object
 
-@description('Identidade do policy-executor: id de recurso e clientId.')
+@description('Identity of the policy-executor: resource id and clientId.')
 param executorIdentity object
 
-@description('Identidade do containment-worker: id de recurso e clientId.')
+@description('Identity of the containment-worker: resource id and clientId.')
 param workerIdentity object
 
-@description('Etiquetas comuns.')
+@description('Common tags.')
 param tags object = {}
 
 resource workspace 'Microsoft.OperationalInsights/workspaces@2026-03-01' existing = {
@@ -81,30 +82,31 @@ resource cae 'Microsoft.App/managedEnvironments@2026-07-01' = {
       destination: 'log-analytics'
       logAnalyticsConfiguration: {
         customerId: workspace.properties.customerId
-        // `sharedKey` é um valor sensível ("Pass in as a secure parameter"). Aqui é lido do próprio
-        // workspace dentro do template e nunca sai como output.
-        // POR VALIDAR: `listKeys()` sobre o workspace e `properties.customerId` não foram
-        // verificados na pesquisa.
+        // `sharedKey` is a sensitive value ("Pass in as a secure parameter"). Here it is read from
+        // the workspace itself inside the template and never leaves as an output.
+        // TO VALIDATE: `listKeys()` on the workspace and `properties.customerId` were not verified
+        // in the research.
         sharedKey: workspace.listKeys().primarySharedKey
       }
     }
-    // POR VALIDAR: `workloadProfiles` não é definido (valores de `workloadProfileType` não
-    // enumerados). Sem perfis, o ambiente usa o plano de consumo.
-    // Rede: sem `vnetConfiguration`. Rede privada é decisão da Fase A.
+    // TO VALIDATE: `workloadProfiles` is not set (values of `workloadProfileType` not enumerated).
+    // Without profiles, the environment uses the consumption plan.
+    // Network: no `vnetConfiguration`. Private networking is a Phase A decision.
   }
 }
 
-// Cadeias de ligação SQL sem palavra-passe, com identidade gerida. Cada serviço liga-se com a
-// SUA identidade (clientId próprio). O utilizador da base de dados tem de ser criado em T-SQL com
+// SQL connection strings without a password, with managed identity. Each service connects with ITS
+// OWN identity (its own clientId). The database user has to be created in T-SQL with
 // CREATE USER ... FROM EXTERNAL PROVIDER (README).
-// O código passa a cadeia tal e qual ao Microsoft.Data.SqlClient. POR VALIDAR: a grafia exacta
-// (Authentication=Active Directory Managed Identity; User Id=<clientId>) vem do formato habitual do
-// driver, não da pesquisa. Confirmar na documentação do driver e ensaiar contra Azure SQL (fase C).
+// The code passes the string as is to Microsoft.Data.SqlClient. TO VALIDATE: the exact spelling
+// (Authentication=Active Directory Managed Identity; User Id=<clientId>) comes from the usual
+// driver format, not from the research. Confirm in the driver documentation and rehearse against
+// Azure SQL (phase C).
 var sqlConnectionControl = 'Server=tcp:${sqlServerFqdn},1433;Database=${databaseName};Authentication=Active Directory Managed Identity;User Id=${controlIdentity.clientId};Encrypt=True'
 var sqlConnectionExecutor = 'Server=tcp:${sqlServerFqdn},1433;Database=${databaseName};Authentication=Active Directory Managed Identity;User Id=${executorIdentity.clientId};Encrypt=True'
 var sqlConnectionWorker = 'Server=tcp:${sqlServerFqdn},1433;Database=${databaseName};Authentication=Active Directory Managed Identity;User Id=${workerIdentity.clientId};Encrypt=True'
 
-// Variáveis de ambiente comuns aos três serviços.
+// Environment variables common to the three services.
 var commonEnv = [
   {
     name: 'Storage__Provider'
@@ -122,9 +124,9 @@ var commonEnv = [
     name: 'Adapters__Mode'
     value: adaptersMode
   }
-  // As identidades de execução não têm ENABLE LEDGER, que o esquema exige. O esquema aplica-se
-  // fora da aplicação, com uma conta administrativa (README). O código, por omissão, tentaria
-  // criá-lo no arranque.
+  // The runtime identities do not have ENABLE LEDGER, which the schema requires. The schema is
+  // applied outside the application, with an administrative account (README). By default, the code
+  // would try to create it at startup.
   {
     name: 'Storage__EnsureSchema'
     value: 'false'
@@ -161,9 +163,10 @@ var executorEnv = concat([
   }
 ], commonEnv)
 
-// O worker não recebe pedidos HTTP e não valida tokens: ContainmentWorker/Program.cs não lê nenhuma
-// variável Auth__. Elas são enviadas só porque o contrato comum as lista para os três serviços e
-// podem sair sem efeito. O worker lê Worker__PollSeconds (omissão 2 s), que aqui não é definida.
+// The worker does not receive HTTP requests and does not validate tokens: ContainmentWorker/Program.cs
+// does not read any Auth__ variable. They are sent only because the common contract lists them for
+// all three services and they can be dropped without effect. The worker reads Worker__PollSeconds
+// (default 2 s), which is not set here.
 var workerEnv = concat([
   {
     name: 'AP_SERVICE'
@@ -183,7 +186,7 @@ resource controlApi 'Microsoft.App/containerApps@2026-07-01' = {
   name: '${namePrefix}-control-api'
   location: location
   tags: union(tags, { 'ap-service': 'control' })
-  // POR VALIDAR: formato do bloco `identity` (tipo e `userAssignedIdentities`) não extraído.
+  // TO VALIDATE: format of the `identity` block (type and `userAssignedIdentities`) not extracted.
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {
@@ -212,7 +215,7 @@ resource controlApi 'Microsoft.App/containerApps@2026-07-01' = {
           name: 'control-api'
           image: containerImage
           env: controlEnv
-          // POR VALIDAR: sem `resources` (cpu, memória). Dimensionar na Fase C.
+          // TO VALIDATE: no `resources` (cpu, memory). Size in Phase C.
         }
       ]
       scale: {
@@ -237,12 +240,13 @@ resource policyExecutor 'Microsoft.App/containerApps@2026-07-01' = {
     environmentId: cae.id
     configuration: {
       activeRevisionsMode: 'Single'
-      // ATENÇÃO, GATE DA FASE C: o ingress está externo e SEM restrição ao APIM. Com este Bicep,
-      // o executor é alcançável sem passar pelo gateway, por isso o BT-05 (gateway e backend não
-      // podem ser contornados) NÃO fica provado. A mitigação mínima documentada é o executor
-      // validar o token ele próprio (defesa em profundidade, feito no código). A restrição de rede
-      // ao APIM (ipSecurityRestrictions, rede virtual ou private endpoint) é POR VALIDAR: a
-      // propriedade existe (`ipSecurityRestrictions`), mas os seus campos não foram extraídos.
+      // WARNING, PHASE C GATE: the ingress is external and WITHOUT restriction to APIM. With this
+      // Bicep, the executor is reachable without going through the gateway, so BT-05 (gateway and
+      // backend cannot be bypassed) is NOT proved. The documented minimum mitigation is for the
+      // executor to validate the token itself (defence in depth, done in the code). Network
+      // restriction to APIM (ipSecurityRestrictions, virtual network or private endpoint) is TO
+      // VALIDATE: the property exists (`ipSecurityRestrictions`), but its fields were not
+      // extracted.
       ingress: {
         external: true
         targetPort: targetPort
@@ -271,9 +275,9 @@ resource policyExecutor 'Microsoft.App/containerApps@2026-07-01' = {
   }
 }
 
-// Sem ingress: o worker só consome a outbox e a fila, e fala com os serviços Microsoft através dos
-// adaptadores. Uma réplica no máximo: os adaptadores são idempotentes, mas não há razão para
-// paralelismo na Fase C.
+// No ingress: the worker only consumes the outbox and the queue, and talks to the Microsoft
+// services through the adapters. One replica at most: the adapters are idempotent, but there is no
+// reason for parallelism in Phase C.
 resource containmentWorker 'Microsoft.App/containerApps@2026-07-01' = {
   name: '${namePrefix}-containment-worker'
   location: location
@@ -315,6 +319,6 @@ output environmentName string = cae.name
 output controlApiName string = controlApi.name
 output executorName string = policyExecutor.name
 output workerName string = containmentWorker.name
-// POR VALIDAR: `configuration.ingress.fqdn` é só de leitura e não está na tabela extraída.
+// TO VALIDATE: `configuration.ingress.fqdn` is read-only and is not in the extracted table.
 output controlApiFqdn string = controlApi.properties.configuration.ingress.fqdn
 output executorFqdn string = policyExecutor.properties.configuration.ingress.fqdn

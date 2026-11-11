@@ -1,4 +1,4 @@
-<!-- Modelo de política de entrada da API do policy-executor. Os marcadores entre sublinhados duplos são substituídos por modules/apim.bicep, que também documenta o que está por validar. -->
+<!-- Inbound policy template for the policy-executor API. The placeholders between double underscores are replaced by modules/apim.bicep, which also documents what is still to be validated. -->
 <policies>
     <inbound>
         <base />

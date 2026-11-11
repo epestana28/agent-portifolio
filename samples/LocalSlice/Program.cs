@@ -35,12 +35,12 @@ var auditor = Person(Roles.Auditor);
 
 var approved = new SharePointLibrary("contoso.sharepoint.com,11111111-1111-4111-8111-111111111111,22222222-2222-4222-8222-222222222222", "b!ApprovedDrive");
 var other = new SharePointLibrary("contoso.sharepoint.com,33333333-3333-4333-8333-333333333333,44444444-4444-4444-8444-444444444444", "b!OtherDrive");
-microsoft.AddDocument(approved, "01ITEM", "politica-de-ferias.txt", "Texto do documento aprovado.");
-microsoft.AddDocument(other, "01ITEM", "salarios.txt", "Documento de outra biblioteca.");
+microsoft.AddDocument(approved, "01ITEM", "holiday-policy.txt", "Text of the approved document.");
+microsoft.AddDocument(other, "01ITEM", "salaries.txt", "Document from another library.");
 
-Console.WriteLine("Agent Portifolio, fatia vertical local. Lado Microsoft: SIMULADO.");
+Console.WriteLine("Agent Portifolio, local vertical slice. Microsoft side: SIMULATED.");
 
-Step("1. Registar o agente, com dono, identidade própria e identidade de executor separada");
+Step("1. Register the agent, with an owner, its own identity and a separate executor identity");
 var agentIdentity = Guid.NewGuid();
 var executorIdentity = Guid.NewGuid();
 microsoft.AddIdentity(agentIdentity);
@@ -49,10 +49,10 @@ microsoft.AddRuntime(agentIdentity);
 microsoft.IssueToken(agentIdentity, time.GetUtcNow().AddMinutes(60));
 var externalGrant = microsoft.AddGrant(executorIdentity, "Sites.Selected", approved.Canonical, "read");
 var agent = await control.RegisterAsync(adminA, new RegisterAgentCommand(IdentityType.EntraAgentId, agentIdentity, null, executorIdentity,
-    "container-app/pilot", "consultar documentos aprovados", Guid.NewGuid(), null, "owner@example.invalid", 100, time.GetUtcNow().AddDays(30)), Corr(), default);
-Show("estado", agent.State);
+    "container-app/pilot", "read_approved_documents", Guid.NewGuid(), null, "owner@example.invalid", 100, time.GetUtcNow().AddDays(30)), Corr(), default);
+Show("state", agent.State);
 
-Step("2. Activar exige duas pessoas");
+Step("2. Activation needs two people");
 await control.SubmitForReviewAsync(adminA, agent.Id, Corr(), default);
 try
 {
@@ -60,57 +60,57 @@ try
 }
 catch (ForbiddenException ex)
 {
-    Show("mesma pessoa a aprovar", $"recusado ({ex.Message})");
+    Show("same person approving", $"refused ({ex.Message})");
 }
 
 agent = await control.ApproveAsync(adminB, agent.Id, Corr(), default);
-Show("segunda pessoa a aprovar", agent.State);
+Show("second person approving", agent.State);
 
-Step("3. Carteira: uma capacidade, uma biblioteca, com validade");
+Step("3. Wallet: one capability, one library, with an expiry");
 var capability = await control.GrantCapabilityAsync(adminA, agent.Id,
     new GrantCapabilityCommand(OperationCatalog.DocumentRead, approved.Canonical, time.GetUtcNow().AddDays(7)), Corr(), default);
 await control.RecordGrantAsync(adminA, agent.Id,
     new RecordGrantCommand(executorIdentity, externalGrant.Type, externalGrant.ExternalId, externalGrant.Resource, externalGrant.Role, "demo"), Corr(), default);
-Show("capacidade", $"{capability.Action} em {capability.Resource}");
-Show("epoch de revogação", agent.RevocationEpoch);
+Show("capability", $"{capability.Action} on {capability.Resource}");
+Show("revocation epoch", agent.RevocationEpoch);
 
-Step("4. O agente lê um documento da biblioteca aprovada");
+Step("4. The agent reads a document from the approved library");
 var caller = new CallerIdentity(tenant, agentIdentity);
 var read = await execution.ExecuteAsync(caller, Read(approved), Corr(), default);
-Show("resultado", $"{read.Status}, {read.ReasonCode}");
+Show("result", $"{read.Status}, {read.ReasonCode}");
 if (read.Payload is DocumentContent document)
 {
-    Show("conteúdo devolvido ao agente", Encoding.UTF8.GetString(document.Bytes));
+    Show("content returned to the agent", Encoding.UTF8.GetString(document.Bytes));
 }
 
-Step("5. O mesmo agente tenta outra biblioteca e uma operação fora da lista");
-Show("outra biblioteca", Outcome(await execution.ExecuteAsync(caller, Read(other), Corr(), default)));
-Show("operação inventada", Outcome(await execution.ExecuteAsync(caller,
+Step("5. The same agent tries another library and an operation outside the allowlist");
+Show("other library", Outcome(await execution.ExecuteAsync(caller, Read(other), Corr(), default)));
+Show("invented operation", Outcome(await execution.ExecuteAsync(caller,
     new ExecutionRequest("graph.batch", new Dictionary<string, string> { ["requests"] = "[]" }, Key()), Corr(), default)));
 
-Step("6. Incidente: suspender. Uma transacção: estado, epoch, operação de contenção, outbox, auditoria");
-var operation = await control.SuspendAsync(incident, agent.Id, "comportamento anómalo", Corr(), default);
-Show("estado da contenção", operation.State);
-Show("epoch depois", operation.EpochAfter);
+Step("6. Incident: suspend. One transaction: state, epoch, containment operation, outbox, audit");
+var operation = await control.SuspendAsync(incident, agent.Id, "anomalous behaviour", Corr(), default);
+Show("containment state", operation.State);
+Show("epoch after", operation.EpochAfter);
 
-Step("7. Nova tentativa do agente, antes de qualquer passo externo");
-Show("leitura", Outcome(await execution.ExecuteAsync(caller, Read(approved), Corr(), default)));
+Step("7. New attempt by the agent, before any external step");
+Show("read", Outcome(await execution.ExecuteAsync(caller, Read(approved), Corr(), default)));
 
-Step("8. Contenção externa (SIMULADA): desactivar identidade, remover grants, isolar runtime, sondar tokens emitidos");
+Step("8. External containment (SIMULATED): disable identity, remove grants, isolate runtime, probe issued tokens");
 await containment.ProcessPendingAsync(default);
 operation = (await control.ListContainmentsAsync(auditor, agent.Id, default)).Single();
 foreach (var step in operation.Steps)
 {
-    Show(step.Name, $"{step.Status}{(step.Limitation is null ? string.Empty : $" | limitação: {step.Limitation}")}");
+    Show(step.Name, $"{step.Status}{(step.Limitation is null ? string.Empty : $" | limitation: {step.Limitation}")}");
 }
 
-Show("resumo", operation.State);
+Show("summary", operation.State);
 foreach (var uncertainty in operation.Uncertainties)
 {
-    Show("incerteza declarada", uncertainty);
+    Show("declared uncertainty", uncertainty);
 }
 
-Step("9. Reactivar: pedido de uma pessoa, aprovação de outra, grants revalidados, capacidades antigas mortas");
+Step("9. Reactivate: request by one person, approval by another, grants revalidated, old capabilities dead");
 await control.RequestReactivationAsync(adminA, agent.Id, Corr(), default);
 try
 {
@@ -118,30 +118,30 @@ try
 }
 catch (InvalidTransitionException ex)
 {
-    Show("aprovar sem revalidar grants", $"recusado ({ex.ReasonCode})");
+    Show("approving without revalidating grants", $"refused ({ex.ReasonCode})");
 }
 
 await reconciliation.ReconcileAsync(tenant, agent.Id, Corr(), default);
 try
 {
     agent = await control.ApproveReactivationAsync(adminB, agent.Id, Corr(), default);
-    Show("estado", $"{agent.State}, epoch {agent.RevocationEpoch}");
-    Show("leitura com a capacidade antiga", Outcome(await execution.ExecuteAsync(caller, Read(approved), Corr(), default)));
+    Show("state", $"{agent.State}, epoch {agent.RevocationEpoch}");
+    Show("read with the old capability", Outcome(await execution.ExecuteAsync(caller, Read(approved), Corr(), default)));
 }
 catch (InvalidTransitionException ex)
 {
-    Show("aprovar depois de reconciliar", $"recusado ({ex.ReasonCode})");
+    Show("approving after reconciling", $"refused ({ex.ReasonCode})");
 }
 
-Step("10. Registo de auditoria do agente (com SQL Server: tabela ledger append-only)");
+Step("10. Audit record of the agent (with SQL Server: append-only ledger table)");
 foreach (var e in await control.ReadAuditAsync(auditor, agent.Id, default))
 {
     Console.WriteLine($"   {e.OccurredAt:HH:mm:ss.fff}  {e.EventType,-30} {e.Decision,-6} {e.ReasonCode,-26} epoch={e.RevocationEpoch}");
 }
 
 Console.WriteLine();
-Console.WriteLine("Fim. Tudo o que diz respeito a Entra, Graph e SharePoint foi simulado.");
-Console.WriteLine("O bloqueio local, a autorização e a auditoria são o código real do produto.");
+Console.WriteLine("End. Everything that concerns Entra, Graph and SharePoint was simulated.");
+Console.WriteLine("The local block, the authorisation and the audit are the real code of the product.");
 
 static void Step(string title)
 {

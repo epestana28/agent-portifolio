@@ -1,186 +1,186 @@
 # Backlog
 
-Projecto: Agent Portifolio. Documento da fase A. Data de verificação das fontes Microsoft: 2026-11-11.
+Project: Agent Portifolio. Phase A document. Verification date of the Microsoft sources: 2026-11-11.
 
-Ordem: por risco, o maior primeiro, dentro de cada fase. As fases seguem a secção 16 da especificação, de A a E. Os riscos referidos (`R-nn`) estão em `risks.md`, as ameaças (`T-nn`) e os testes (`BT-nn`, `TC-nn`) em `threat-model.md`, as lacunas (`L-nn`) e pressupostos (`P-nn`) em `gaps-and-assumptions.md`.
+Order: by risk, the highest first, within each phase. The phases follow section 16 of the specification, A to E. The risks referred to (`R-nn`) are in `risks.md`, the threats (`T-nn`) and tests (`BT-nn`, `TC-nn`) in `threat-model.md`, the gaps (`L-nn`) and assumptions (`P-nn`) in `gaps-and-assumptions.md`.
 
-## 1. Estado real
+## 1. Real status
 
-Nenhuma fase avança sem o gate da anterior aprovado por uma pessoa. O estado abaixo não foi inflacionado.
+No phase advances without the gate of the previous one approved by a person. The status below has not been inflated.
 
-| Fase | Estado | Gate (secção 16 da especificação) | Estado do gate |
-|---|---|---|---|
-| A. Validação | Documentos escritos a partir de documentação oficial, sem tenant. Campos que dependem do tenant ficam "POR PREENCHER NO TENANT". | Aprovação de âmbito, licenças e permissões. | Por aprovar por humano. |
-| B. Fatia local | Implementada em .NET 8, sem credenciais reais. O mundo Microsoft é simulado e assinalado como simulação. | Invariantes e concorrência testados. | Por aprovar por humano. Suite local por confirmar (ver B-01). |
-| C. Azure de teste | Por fazer. Bicep escrito, nunca aplicado. | Prova de impossibilidade de acesso directo no perfil forte. | Não aplicável. |
-| D. Contenção | Por fazer. Nenhum adaptador real para Entra nem para Graph. | Cobertura verificada, incertezas visíveis e runbook independente. | Não aplicável. |
-| E. Piloto | Por fazer. | Aprovação humana de produção. Zero riscos críticos não mitigados ou aceites formalmente. | Não aplicável. |
+| Phase | Status | Gate (section 16 of the specification) | Gate status |
+| --- | --- | --- | --- |
+| A. Validation | Documents written from official documentation, without a tenant. Fields that depend on the tenant stay "TO BE FILLED IN THE TENANT". | Approval of scope, licences and permissions. | To be approved by a human. |
+| B. Local slice | Implemented in .NET 8, without real credentials. The Microsoft world is simulated and marked as simulation. | Invariants and concurrency tested. | To be approved by a human. Local suite to be confirmed (see B-01). |
+| C. Test Azure | To do. Bicep written, never applied. | Proof that direct access is impossible in the strong profile. | Not applicable. |
+| D. Containment | To do. No real adapter for Entra or Graph. | Verified coverage, visible uncertainties and independent runbook. | Not applicable. |
+| E. Pilot | To do. | Human approval for production. Zero critical risks that are unmitigated or not formally accepted. | Not applicable. |
 
-Documentos da fase A previstos na especificação: `environment-assessment.md`, `architecture.md`, `threat-model.md`, `permission-matrix.md`, `coverage-matrix.md`, `cost-estimate.md`, ADRs e riscos. Este conjunto contém o threat model, os riscos, as lacunas e pressupostos, este backlog e os nove ADRs.
+Phase A documents foreseen in the specification: `environment-assessment.md`, `architecture.md`, `threat-model.md`, `permission-matrix.md`, `coverage-matrix.md`, `cost-estimate.md`, ADRs and risks. This set contains the threat model, the risks, the gaps and assumptions, this backlog and the nine ADRs.
 
-## 2. O que já existe na Microsoft e o mínimo a construir
+## 2. What already exists at Microsoft and the minimum to build
 
-Derivada da secção 3 da especificação (regra Microsoft-first), com o estado verificado da documentação. "Código próprio admitido" é o limite: o que fica fora desta coluna não se constrói.
+Derived from section 3 of the specification (Microsoft-first rule), with the verified state of the documentation. "Own code admitted" is the limit: what is outside this column is not built.
 
-Cada facto Microsoft leva chave `Mxx` que remete para a tabela de fontes no fim (URL do Microsoft Learn e data 2026-11-11).
+Each Microsoft fact carries a key `Mxx` that points to the sources table at the end (Microsoft Learn URL and date 2026-11-11).
 
-| Necessidade | Já existe na Microsoft (estado verificado) | Mínimo a construir | Onde no repositório |
-|---|---|---|---|
-| Identidade de agente | Entra Agent ID, "available for all Microsoft Entra customers", APIs Graph em `v1.0`. GA textual NÃO VERIFICADO [M60] [M18]. Agent identity é um service principal e as credenciais vivem no blueprint [M14]. | Adaptador por tipo de identidade (`IdentityType`) e correlação com o agente registado. | `src/Core` (modelo), adaptadores em `src/Simulation` (hoje só simulados) |
-| Workloads existentes | Managed identities e service principals. Managed identity: sem disable documentado, cache de cerca de 24 horas, sem refresh forçado [M09]. | Adaptadores separados por tipo. Isolamento do runtime e remoção de grants. | `src/ContainmentWorker`, `src/Simulation` |
-| Inventário e responsáveis | Agent 365 em GA desde 2026-05-01, segmento Commercial, licença por utilizador [M16]. Criar a identidade Entra não regista a instância no Agent 365 [M15]. | Vista agregada e campos de cobertura. Não duplicar o inventário nativo. | `src/ControlApi` |
-| Entrada governada | Azure API Management com `validate-azure-ad-token` [M35]. O AI gateway governa tráfego de modelos e ferramentas, não a semântica de Graph [M34]. | Modelo de política APIM (audiência, aplicação cliente, negar `$batch`). Validação de capacidades e recursos no executor. | `infra/bicep`, `src/PolicyExecutor` |
-| Permissões SharePoint | Selected permissions: `Sites.Selected`, `Lists.SelectedOperations.Selected`, `ListItems.SelectedOperations.Selected`, `Files.SelectedOperations.Selected`. Consentimento sem atribuição no recurso não dá acesso [M22]. GA por nível NÃO VERIFICADO. | Orquestração de concessão e verificação. Identidade que atribui separada do executor. | `src/ContainmentWorker`, `src/ControlApi` (por fazer na fase C) |
-| Correio (fase posterior) | Exchange RBAC for Applications. Soma-se às permissões do Entra. Não existe papel só de rascunhos [M32]. GA NÃO VERIFICADO. | Executor restrito a operações permitidas. Testes negativos. Fora do MVP. | Não iniciado |
-| Histórico verificável | Azure SQL Database Ledger, tabelas append-only [M44], digests automáticos [M41], verificação [M40]. Evidência de adulteração, não prevenção [M39]. | Esquema `ap.AuditEvent` e eventos de domínio. | `src/Storage.SqlServer` |
-| Digests independentes | Blob imutável com política `locked` [M46]. Azure Confidential Ledger como opção, com limites [M49]. | Agendamento e verificação complementar. Alertas. | `infra/bicep`, `runbooks` |
-| Segredos | Key Vault. Identidades sem segredo quando possível. | Nenhum cofre próprio. | `infra/bicep` |
-| Observabilidade | Agent 365 com OpenTelemetry. O SDK de observabilidade do Agent 365 está deprecated, recomendada a Microsoft OpenTelemetry Distro [M15]. Azure Monitor e Application Insights. | Instrumentação e correlação do serviço de controlo e do executor. Não substitui a ledger. | `src/*` |
-| Detecção e dados | Os dados de observabilidade de agentes registados aparecem no Microsoft Defender (vistas de actividade e `CloudAppEvents`), no centro de administração Microsoft 365 e no Purview [M15]. Sentinel não foi pesquisado. Cobertura efectiva NÃO VERIFICADA. | Integração, não substituição. Por avaliar na fase D ou E. | Não iniciado |
-| Infraestrutura | Bicep. Azure Policy não foi pesquisado: NÃO VERIFICADO. | Módulos do produto. | `infra/bicep` |
-| Autorização fina de operações | Nenhuma capacidade documentada para semântica de Graph, SharePoint ou Exchange no APIM [M34]. | Tudo: `AuthorizationEngine`, `OperationCatalog`, `ResourceCanonicalizer`, `ExecutionService`. | `src/Core` |
-| Carteira, capacidades, epoch | Não existe equivalente. | Tudo: modelo, `IWalletStore.TransactAsync`, suspensão, outbox. | `src/Core`, `src/Storage.SqlServer` |
-| Estados de contenção e relatório por passo | Não existe equivalente. | Tudo: `ContainmentOperation`, estados separados, sondas. | `src/Core`, `src/ContainmentWorker` |
+| Need | Already exists at Microsoft (verified state) | Minimum to build | Where in the repository |
+| --- | --- | --- | --- |
+| Agent identity | Entra Agent ID, "available for all Microsoft Entra customers", Graph APIs in `v1.0`. Textual GA NOT VERIFIED [M60] [M18]. An agent identity is a service principal and the credentials live in the blueprint [M14]. | Adapter per identity type (`IdentityType`) and correlation with the registered agent. | `src/Core` (model), adapters in `src/Simulation` (today simulated only) |
+| Existing workloads | Managed identities and service principals. Managed identity: no documented disable, cache of about 24 hours, no forced refresh [M09]. | Separate adapters per type. Runtime isolation and removal of grants. | `src/ContainmentWorker`, `src/Simulation` |
+| Inventory and owners | Agent 365 in GA since 2026-05-01, Commercial segment, per-user licence [M16]. Creating the Entra identity does not register the instance in Agent 365 [M15]. | Aggregated view and coverage fields. Do not duplicate the native inventory. | `src/ControlApi` |
+| Governed entry | Azure API Management with `validate-azure-ad-token` [M35]. The AI gateway governs model and tool traffic, not Graph semantics [M34]. | APIM policy template (audience, client application, deny `$batch`). Validation of capabilities and resources in the executor. | `infra/bicep`, `src/PolicyExecutor` |
+| SharePoint permissions | Selected permissions: `Sites.Selected`, `Lists.SelectedOperations.Selected`, `ListItems.SelectedOperations.Selected`, `Files.SelectedOperations.Selected`. Consent without assignment on the resource gives no access [M22]. GA per level NOT VERIFIED. | Orchestration of granting and verification. Assigning identity separate from the executor. | `src/ContainmentWorker`, `src/ControlApi` (to be done in phase C) |
+| Mail (later phase) | Exchange RBAC for Applications. Adds to the Entra permissions. There is no drafts-only role [M32]. GA NOT VERIFIED. | Executor restricted to permitted operations. Negative tests. Outside the MVP. | Not started |
+| Verifiable history | Azure SQL Database Ledger, append-only tables [M44], automatic digests [M41], verification [M40]. Evidence of tampering, not prevention [M39]. | Schema `ap.AuditEvent` and domain events. | `src/Storage.SqlServer` |
+| Independent digests | Immutable Blob with a `locked` policy [M46]. Azure Confidential Ledger as an option, with limits [M49]. | Scheduling and complementary verification. Alerts. | `infra/bicep`, `runbooks` |
+| Secrets | Key Vault. Secretless identities where possible. | No vault of our own. | `infra/bicep` |
+| Observability | Agent 365 with OpenTelemetry. The Agent 365 observability SDK is deprecated, the Microsoft OpenTelemetry Distro is recommended [M15]. Azure Monitor and Application Insights. | Instrumentation and correlation of the control service and the executor. Does not replace the ledger. | `src/*` |
+| Detection and data | Observability data of registered agents appears in Microsoft Defender (activity views and `CloudAppEvents`), in the Microsoft 365 admin centre and in Purview [M15]. Sentinel was not researched. Effective coverage NOT VERIFIED. | Integration, not replacement. To be assessed in phase D or E. | Not started |
+| Infrastructure | Bicep. Azure Policy was not researched: NOT VERIFIED. | Modules of the product. | `infra/bicep` |
+| Fine-grained authorisation of operations | No documented capability for Graph, SharePoint or Exchange semantics in APIM [M34]. | Everything: `AuthorizationEngine`, `OperationCatalog`, `ResourceCanonicalizer`, `ExecutionService`. | `src/Core` |
+| Wallet, capabilities, epoch | No equivalent exists. | Everything: model, `IWalletStore.TransactAsync`, suspension, outbox. | `src/Core`, `src/Storage.SqlServer` |
+| Containment states and per-step report | No equivalent exists. | Everything: `ContainmentOperation`, separate states, probes. | `src/Core`, `src/ContainmentWorker` |
 
-Resumo do mínimo: o produto constrói a camada de carteira, autorização, contenção e evidência. Não constrói identidade, ledger, gateway, cofre, nem emissor de tokens.
+Summary of the minimum: the product builds the layer of wallet, authorisation, containment and evidence. It does not build identity, ledger, gateway, vault or token issuer.
 
-## 3. Fase A: validação
+## 3. Phase A: validation
 
-Gate: aprovação de âmbito, licenças e permissões. Estado: por aprovar por humano.
+Gate: approval of scope, licences and permissions. Status: to be approved by a human.
 
-Itens por risco, o maior primeiro. Tarefas só de decisão ou de preenchimento.
+Items by risk, the highest first. Tasks of decision or of filling in only.
 
-| Id | Item | Risco | Depende de | Saída |
-|---|---|---|---|---|
-| A-01 | Decidir a retenção, a pseudonimização e a eliminação de dados na ledger e nos digests, e `isLedgerOn`, antes de qualquer lock ou criação da base. | R-05 | Responsável de protecção de dados | Decisão registada |
-| A-02 | Aprovar o tratamento da contradição de Selected: assumir `Sites.Selected` com `read` e exigir confirmação endpoint a endpoint na fase C. Proibir `Files.Read.All` e `Sites.Read.All`. | R-07 | Dono do projecto | Decisão registada |
-| A-03 | Confirmar licenças (Agent 365, Entra P1 ou P2, E7) e custos incrementais. | R-04, R-15 | Dono do projecto, comercial | Licenças aprovadas |
-| A-04 | Aceitar ou recusar cada dependência em preview e em beta, com a alternativa de cada uma (ADR 0009). | R-01 | Dono do projecto | ADR 0009 aprovado |
-| A-05 | Decidir destino dos digests: Blob imutável (baseline) ou Confidential Ledger. | R-14 | Segurança | ADR 0004 aprovado |
-| A-06 | Atribuir owners das ameaças e dos riscos. | R-25 | Dono do projecto | Tabela com nomes |
-| A-07 | Aprovar o âmbito do piloto: um tenant, um runtime, um agente de leitura, uma biblioteca, teste negativo noutro recurso. | R-17 | Dono do projecto | Âmbito aprovado |
-| A-08 | Decidir se o Agent 365 entra no âmbito e se o agent user fica fora. | R-11 | Dono do projecto | Decisão registada |
-| A-09 | Definir o intervalo da reconciliação periódica e o RPO e RTO alvo. | R-21 | Dono do projecto, plataforma | Valores aprovados |
-| A-10 | Preencher os campos "POR PREENCHER NO TENANT" de `environment-assessment.md`. | R-17 | Acesso ao tenant | Documento completo. Bloqueado sem tenant. |
-| A-11 | Reler por inteiro as páginas verificadas só por excerto antes de as citar numa decisão (L-42). | R-01 | Nenhuma | Fontes completas |
-| A-12 | Aprovar o gate da fase A. | todos | A-01 a A-09 | Gate aprovado por humano |
+| Id | Item | Risk | Depends on | Output |
+| --- | --- | --- | --- | --- |
+| A-01 | Decide the retention, pseudonymisation and deletion of data in the ledger and in the digests, and `isLedgerOn`, before any lock or creation of the database. | R-05 | Data protection officer | Decision recorded |
+| A-02 | Approve the handling of the Selected contradiction: assume `Sites.Selected` with `read` and require endpoint-by-endpoint confirmation in phase C. Forbid `Files.Read.All` and `Sites.Read.All`. | R-07 | Project owner | Decision recorded |
+| A-03 | Confirm licences (Agent 365, Entra P1 or P2, E7) and incremental costs. | R-04, R-15 | Project owner, commercial | Licences approved |
+| A-04 | Accept or refuse each preview and beta dependency, with the alternative for each (ADR 0009). | R-01 | Project owner | ADR 0009 approved |
+| A-05 | Decide the destination of the digests: immutable Blob (baseline) or Confidential Ledger. | R-14 | Security | ADR 0004 approved |
+| A-06 | Assign owners of the threats and risks. | R-25 | Project owner | Table with names |
+| A-07 | Approve the pilot scope: one tenant, one runtime, one read agent, one library, negative test on another resource. | R-17 | Project owner | Scope approved |
+| A-08 | Decide whether Agent 365 is in scope and whether the agent user stays out. | R-11 | Project owner | Decision recorded |
+| A-09 | Define the interval of periodic reconciliation and the target RPO and RTO. | R-21 | Project owner, platform | Values approved |
+| A-10 | Fill in the "TO BE FILLED IN THE TENANT" fields of `environment-assessment.md`. | R-17 | Tenant access | Document complete. Blocked without a tenant. |
+| A-11 | Re-read in full the pages verified only as excerpts before citing them in a decision (L-42). | R-01 | None | Complete sources |
+| A-12 | Approve the phase A gate. | all | A-01 to A-09 | Gate approved by a human |
 
-## 4. Fase B: fatia local
+## 4. Phase B: local slice
 
-Gate: invariantes e concorrência testados. Estado: implementada, gate por aprovar por humano.
+Gate: invariants and concurrency tested. Status: implemented, gate to be approved by a human.
 
-Implementado: núcleo (`src/Core`), armazenamento SQL Server (`src/Storage.SqlServer`), mundo simulado com injecção de falhas (`src/Simulation`), API de controlo, executor, worker de contenção, imagem Docker e docker compose com SQL Server 2022. Nada disto usa credenciais reais.
+Implemented: core (`src/Core`), SQL Server storage (`src/Storage.SqlServer`), simulated world with fault injection (`src/Simulation`), control API, executor, containment worker, Docker image and docker compose with SQL Server 2022. None of this uses real credentials.
 
-Itens por risco, o maior primeiro. O trabalho que falta é fechar os testes e confirmar o estado.
+Items by risk, the highest first. The remaining work is to close the tests and confirm the status.
 
-| Id | Item | Risco | Saída |
-|---|---|---|---|
-| B-01 | FEITO em 2026-11-11, ver `test-plan.md`. Confirmado contra a suite: 78 testes, 78 passados com `AP_TEST_SQL`, 73 passados e 5 ignorados sem ela. Cada teste de BT tem o prefixo `BTnn_` no método. BT-06, BT-13 e BT-14 só existem em simulação. BT-05, BT-17 e BT-20 não têm prova local (BT-20 não tem teste). | R-16 | Tabela de BT com estado confirmado |
-| B-02 | Testes de concorrência: suspensão contra admissão e execução (BT-03, BT-04), com acções em curso documentadas. FEITO em memória (`BT04_`). Falta a corrida de suspensão contra SQL real: só o limite de acções e a idempotência têm teste concorrente em SQL real. | R-02 | Gate de concorrência |
-| B-03 | TC-06 (batch, `$expand`, `$select`, `Location` e `downloadUrl` nunca devolvidos) e TC-05 (argumentos tipo URL). FEITO em parte: `Generic_proxy_batch_and_arbitrary_urls_are_impossible` e `BT06_`. Não há teste dedicado a `$expand`, `$select` nem `Location`. | R-09 | Testes unitários |
-| B-04 | TC-07: variantes de grafia do recurso, todas recusadas. FEITO: `Non_canonical_resources_are_rejected_not_normalised`. | R-17 | Teste unitário |
-| B-05 | TC-14: mensagem de epoch anterior descartada como `superseded` depois da reactivação. FEITO: `Old_containment_message_never_acts_on_a_reactivated_agent_and_never_reactivates`. | R-18 | Teste local |
-| B-06 | TC-09 e TC-10: reactivação por dois PolicyAdmin distintos, e identidade de execução única por agente. TC-09 FEITO. TC-10 POR FAZER: o código só recusa o executor igual à identidade do agente, não dois agentes com o mesmo `ExecutorObjectId`. | R-20, R-12 | Testes locais |
-| B-07 | TC-18: falhas injectadas nos adaptadores nunca produzem `VerifiedScoped`. FEITO: `Repeated_failure_is_bounded_and_reported_as_failed` e `Suspended_never_becomes_verified_without_external_steps`. | R-16 | Teste local com falhas injectadas |
-| B-08 | TC-01, TC-04, TC-08: argumentos hostis, capacidade cruzada, isolamento de tenant. FEITO em parte: `Unknown_missing_or_extra_arguments_are_rejected`, `Capability_of_another_agent_or_tenant_never_matches`, `Operator_of_another_tenant_cannot_see_or_touch_the_agent`. Falta confirmar que a resposta de um agente de outro tenant é igual à de um agente inexistente. | R-12 | Testes locais |
-| B-09 | Assinalar a simulação em cada adaptador simulado e na documentação. FEITO no código (cabeçalho `X-AgentPortifolio-Simulation`, aviso no arranque, prefixo `SIMULATED` no teste de BT-14). Rever os textos. | R-16 | Revisão |
-| B-10 | Aprovar o gate da fase B. | R-16 | Gate aprovado por humano |
-| B-11 | Decidir `Storage:EnsureSchema`: por omissão é `true` e criar a tabela ledger exige `ENABLE LEDGER`, que o desenho não dá a nenhuma identidade de execução. O Bicep põe `Storage__EnsureSchema=false` e o esquema aplica-se com conta administrativa. | R-05 | Decisão e, se for o caso, omissão `false` no código |
-| B-12 | Ligar o que existe e nenhum host chama: `ExecutionService.SweepStaleActionsAsync`, reconciliação periódica, e contenção ao retirar um agente (`retire` só sobe a epoch). | R-18 | Agendamento e testes |
+| Id | Item | Risk | Output |
+| --- | --- | --- | --- |
+| B-01 | DONE on 2026-11-11, see `test-plan.md`. Confirmed against the suite: 78 tests, 78 passed with `AP_TEST_SQL`, 73 passed and 5 ignored without it. Each BT test has the prefix `BTnn_` in the method. BT-06, BT-13 and BT-14 exist only in simulation. BT-05, BT-17 and BT-20 have no local proof (BT-20 has no test). | R-16 | BT table with confirmed status |
+| B-02 | Concurrency tests: suspension against admission and execution (BT-03, BT-04), with documented in-flight actions. DONE in memory (`BT04_`). The race of suspension against real SQL is missing: only the action limit and idempotency have a concurrent test on real SQL. | R-02 | Concurrency gate |
+| B-03 | TC-06 (batch, `$expand`, `$select`, `Location` and `downloadUrl` never returned) and TC-05 (URL-type arguments). PARTLY DONE: `Generic_proxy_batch_and_arbitrary_urls_are_impossible` and `BT06_`. There is no dedicated test for `$expand`, `$select` or `Location`. | R-09 | Unit tests |
+| B-04 | TC-07: spelling variants of the resource, all refused. DONE: `Non_canonical_resources_are_rejected_not_normalised`. | R-17 | Unit test |
+| B-05 | TC-14: message of a previous epoch discarded as `superseded` after reactivation. DONE: `Old_containment_message_never_acts_on_a_reactivated_agent_and_never_reactivates`. | R-18 | Local test |
+| B-06 | TC-09 and TC-10: reactivation by two distinct PolicyAdmins, and a single execution identity per agent. TC-09 DONE. TC-10 TO DO: the code only refuses an executor equal to the agent identity, not two agents with the same `ExecutorObjectId`. | R-20, R-12 | Local tests |
+| B-07 | TC-18: faults injected into the adapters never produce `VerifiedScoped`. DONE: `Repeated_failure_is_bounded_and_reported_as_failed` and `Suspended_never_becomes_verified_without_external_steps`. | R-16 | Local test with injected faults |
+| B-08 | TC-01, TC-04, TC-08: hostile arguments, crossed capability, tenant isolation. PARTLY DONE: `Unknown_missing_or_extra_arguments_are_rejected`, `Capability_of_another_agent_or_tenant_never_matches`, `Operator_of_another_tenant_cannot_see_or_touch_the_agent`. Still to confirm that the response for an agent of another tenant is the same as for a non-existent agent. | R-12 | Local tests |
+| B-09 | Mark the simulation in each simulated adapter and in the documentation. DONE in the code (`X-AgentPortifolio-Simulation` header, warning at start-up, `SIMULATED` prefix in the BT-14 test). Review the texts. | R-16 | Review |
+| B-10 | Approve the phase B gate. | R-16 | Gate approved by a human |
+| B-11 | Decide `Storage:EnsureSchema`: by default it is `true` and creating the ledger table requires `ENABLE LEDGER`, which the design does not give to any execution identity. The Bicep sets `Storage__EnsureSchema=false` and the schema is applied with an administrative account. | R-05 | Decision and, if applicable, default `false` in the code |
+| B-12 | Wire up what exists and no host calls: `ExecutionService.SweepStaleActionsAsync`, periodic reconciliation, and containment when retiring an agent (`retire` only raises the epoch). | R-18 | Scheduling and tests |
 
-## 5. Fase C: Azure de teste
+## 5. Phase C: test Azure
 
-Gate: prova de impossibilidade de acesso directo no perfil forte. Estado: por fazer. Bloqueada por: gate da fase A aprovado, subscrição e tenant (ver `gaps-and-assumptions.md`, secção 4.3).
+Gate: proof that direct access is impossible in the strong profile. Status: to do. Blocked by: phase A gate approved, subscription and tenant (see `gaps-and-assumptions.md`, section 4.3).
 
-Itens por risco, o maior primeiro.
+Items by risk, the highest first.
 
-| Id | Item | Risco | Testes | Bloqueado por |
-|---|---|---|---|---|
-| C-01 | Provar a impossibilidade de acesso directo: agente sem credencial Graph, sem rota de rede, backend não contornável. | R-12, R-06 | BT-05, BT-06, TC-17, TC-20 | Subscrição, Bicep |
-| C-02 | Validar a matriz de permissões endpoint a endpoint para as quatro operações, com recurso autorizado e recurso negativo. Decidir as contradições L-19, L-20 e L-21. | R-07 | BT-01 | Tenant |
-| C-03 | Validar `tid` e `oid` de um token real de agent identity, e os formatos de site, drive e item. | R-17 | BT-02, TC-07 | Tenant, agent identity de teste |
-| C-04 | Modelo de política APIM: `validate-azure-ad-token` com audiência e aplicação cliente, negar `$batch`. Executor valida o token. | R-06, R-09 | TC-02, TC-03, TC-06 | Escalão do APIM |
-| C-05 | Observar os anfitriões do 302 no SharePoint Online e fixar a lista de saída do executor. | R-08 | TC-05 | Tenant |
-| C-06 | SQL Ledger: tabela append-only, digests automáticos para Blob com política `locked`, depois de a retenção estar aprovada. Lock como passo manual. | R-05, R-14 | BT-16, TC-19 | A-01, subscrição |
-| C-07 | Alertas de digests: idade, falha de exportação, queda de uploads com sucesso, resultado da verificação. | R-14 | TC-19 | C-06 |
-| C-08 | Verificação agendada da ledger com Azure Automation ou job próprio (Entra-only). | R-19 | BT-16 | Decisão A-05 |
-| C-09 | Outbox para Service Bus: duplicate detection, `maxDeliveryCount`, tratamento da DLQ, consumidores idempotentes. | R-18 | BT-09, BT-10, TC-14 | Subscrição |
-| C-10 | Restauro e failover: o agente suspenso continua suspenso, RPO validado, reconciliação antes de reabrir tráfego. | R-21 | BT-17 | Azure SQL com geo-replicação |
-| C-11 | Medir o SLO de 5 segundos de recusa de novas admissões após suspensão persistida, com p50, p95 e p99. | R-23 | BT-03 | APIM e executor reais |
-| C-12 | Compilar o Bicep, `what-if` e aplicação com aprovação. Registar as `apiVersion` aceites (L-39). | R-15, R-17 | nenhum | Subscrição, aprovação de custos |
-| C-13 | Aprovar o gate da fase C. | R-12 | C-01 a C-12 | Gate aprovado por humano |
+| Id | Item | Risk | Tests | Blocked by |
+| --- | --- | --- | --- | --- |
+| C-01 | Prove that direct access is impossible: agent without a Graph credential, without a network route, backend that cannot be bypassed. | R-12, R-06 | BT-05, BT-06, TC-17, TC-20 | Subscription, Bicep |
+| C-02 | Validate the permission matrix endpoint by endpoint for the four operations, with an authorised resource and a negative resource. Decide the contradictions L-19, L-20 and L-21. | R-07 | BT-01 | Tenant |
+| C-03 | Validate `tid` and `oid` of a real agent identity token, and the formats of site, drive and item. | R-17 | BT-02, TC-07 | Tenant, test agent identity |
+| C-04 | APIM policy template: `validate-azure-ad-token` with audience and client application, deny `$batch`. The executor validates the token. | R-06, R-09 | TC-02, TC-03, TC-06 | APIM tier |
+| C-05 | Observe the hosts of the 302 in SharePoint Online and fix the egress list of the executor. | R-08 | TC-05 | Tenant |
+| C-06 | SQL Ledger: append-only table, automatic digests to Blob with a `locked` policy, after retention is approved. Lock as a manual step. | R-05, R-14 | BT-16, TC-19 | A-01, subscription |
+| C-07 | Digest alerts: age, export failure, drop in successful uploads, verification result. | R-14 | TC-19 | C-06 |
+| C-08 | Scheduled ledger verification with Azure Automation or a dedicated job (Entra-only). | R-19 | BT-16 | Decision A-05 |
+| C-09 | Outbox to Service Bus: duplicate detection, `maxDeliveryCount`, DLQ handling, idempotent consumers. | R-18 | BT-09, BT-10, TC-14 | Subscription |
+| C-10 | Restore and failover: the suspended agent stays suspended, RPO validated, reconciliation before reopening traffic. | R-21 | BT-17 | Azure SQL with geo-replication |
+| C-11 | Measure the 5-second SLO for refusing new admissions after persisted suspension, with p50, p95 and p99. | R-23 | BT-03 | Real APIM and executor |
+| C-12 | Compile the Bicep, `what-if` and apply with approval. Record the accepted `apiVersion` values (L-39). | R-15, R-17 | none | Subscription, cost approval |
+| C-13 | Approve the phase C gate. | R-12 | C-01 to C-12 | Gate approved by a human |
 
-## 6. Fase D: contenção
+## 6. Phase D: containment
 
-Gate: cobertura verificada, incertezas visíveis e runbook independente. Estado: por fazer. Bloqueada por: gate da fase C aprovado e tenant com agent identities de teste.
+Gate: verified coverage, visible uncertainties and independent runbook. Status: to do. Blocked by: phase C gate approved and a tenant with test agent identities.
 
-Itens por risco, o maior primeiro.
+Items by risk, the highest first.
 
-| Id | Item | Risco | Testes | Bloqueado por |
-|---|---|---|---|---|
-| D-01 | BT-14: obter um token antes da desactivação, desactivar e testar o token num recurso de teste. Medir por tipo de identidade (agent identity, service principal, managed identity) e por recurso. Reportar o resultado real. | R-02 | BT-14 | Tenant |
-| D-02 | Adaptador real de desactivação Entra para agent identity. Validar o corpo do pedido e o efeito de `accountEnabled` (L-02, L-03). | R-02 | BT-13, BT-14 | Agent ID Administrator |
-| D-03 | Adaptador real de remoção de grants Selected, com verificação por sonda. Medir o atraso até à recusa. Tratar a assimetria criar e remover (L-21). | R-07, R-12 | BT-07 | Tenant |
-| D-04 | Isolamento de runtime e de managed identity sem disable: paragem do runtime, remoção de grants, rotação de credenciais quando aplicável. | R-03 | BT-14 | Runtime de teste |
-| D-05 | BT-13 real: desactivar uma agent identity e verificar que as irmãs do blueprint e o agent user mantêm o estado esperado. Medir a cascata (L-05, L-08). | R-13 | BT-13 | Blueprint com duas agent identities |
-| D-06 | Estudar a relação entre o bloqueio no Agent 365 e a desactivação no Entra (L-06). | R-11 | nenhum | Agent 365 licenciado, se aprovado |
-| D-07 | Throttling real: estados parciais visíveis, `Retry-After` respeitado. | R-22 | BT-12 | Tenant |
-| D-08 | Relatório de contenção por recurso, com `VerifiedScoped` só com âmbito explícito e sonda. | R-16 | BT-11, BT-12 | D-02 a D-04 |
-| D-09 | Break-glass independente da aplicação: documentar e ensaiar com a aplicação em baixo. | R-20 | BT-20 | Runbook |
-| D-10 | Runbook que permita a uma pessoa independente repetir os testes. | R-16 | todos | D-01 a D-09 |
-| D-11 | Reconciliação real: grants observados contra registados, grants amplos, acessos directos. | R-12 | BT-15 | D-03 |
-| D-12 | Aprovar o gate da fase D. | R-02 | D-01 a D-11 | Gate aprovado por humano |
+| Id | Item | Risk | Tests | Blocked by |
+| --- | --- | --- | --- | --- |
+| D-01 | BT-14: obtain a token before the disable, disable and test the token on a test resource. Measure per identity type (agent identity, service principal, managed identity) and per resource. Report the real result. | R-02 | BT-14 | Tenant |
+| D-02 | Real Entra disable adapter for agent identity. Validate the request body and the effect of `accountEnabled` (L-02, L-03). | R-02 | BT-13, BT-14 | Agent ID Administrator |
+| D-03 | Real adapter for removing Selected grants, with verification by probe. Measure the delay until refusal. Handle the create and remove asymmetry (L-21). | R-07, R-12 | BT-07 | Tenant |
+| D-04 | Runtime and managed identity isolation without disable: stop the runtime, remove grants, rotate credentials where applicable. | R-03 | BT-14 | Test runtime |
+| D-05 | Real BT-13: disable one agent identity and verify that the sibling identities of the blueprint and the agent user keep the expected state. Measure the cascade (L-05, L-08). | R-13 | BT-13 | Blueprint with two agent identities |
+| D-06 | Study the relationship between the block in Agent 365 and the disable in Entra (L-06). | R-11 | none | Licensed Agent 365, if approved |
+| D-07 | Real throttling: partial states visible, `Retry-After` honoured. | R-22 | BT-12 | Tenant |
+| D-08 | Containment report per resource, with `VerifiedScoped` only with explicit scope and probe. | R-16 | BT-11, BT-12 | D-02 to D-04 |
+| D-09 | Break-glass independent of the application: document and rehearse with the application down. | R-20 | BT-20 | Runbook |
+| D-10 | Runbook that allows an independent person to repeat the tests. | R-16 | all | D-01 to D-09 |
+| D-11 | Real reconciliation: observed grants against recorded ones, broad grants, direct accesses. | R-12 | BT-15 | D-03 |
+| D-12 | Approve the phase D gate. | R-02 | D-01 to D-11 | Gate approved by a human |
 
-## 7. Fase E: piloto
+## 7. Phase E: pilot
 
-Gate: aprovação humana de produção. Zero riscos críticos não mitigados ou aceites formalmente. Estado: por fazer.
+Gate: human approval for production. Zero critical risks that are unmitigated or not formally accepted. Status: to do.
 
-Itens por risco, o maior primeiro.
+Items by risk, the highest first.
 
-| Id | Item | Risco |
+| Id | Item | Risk |
 |---|---|---|
-| E-01 | Decidir formalmente todos os riscos de `risks.md` (aceitar, mitigar ou bloquear), com decisor nomeado. | Todos |
-| E-02 | Revisão de segurança independente do conjunto. | R-06, R-12 |
-| E-03 | Recuperação: restauro, failover, RPO e RTO aprovados e ensaiados. | R-21 |
-| E-04 | Retenção e eliminação: política aprovada e aplicada antes do lock em produção. | R-05 |
-| E-05 | Custos reais contra a estimativa. | R-15 |
-| E-06 | Carga, com o limite de que testes de carga não são permitidos em SharePoint Online [M31]. | R-22 |
-| E-07 | Operação: alertas mínimos (acesso directo descoberto, drift, tentativa pós-suspensão, conta sem responsável, grant amplo, falha de contenção, ledger ou digest indisponível, alteração administrativa sensível), responsáveis e ensaio. | R-24, R-18 |
-| E-08 | Aprovar o gate da fase E. | Todos |
+| E-01 | Formally decide all the risks in `risks.md` (accept, mitigate or block), with a named decision maker. | All |
+| E-02 | Independent security review of the whole set. | R-06, R-12 |
+| E-03 | Recovery: restore, failover, RPO and RTO approved and rehearsed. | R-21 |
+| E-04 | Retention and deletion: policy approved and applied before the lock in production. | R-05 |
+| E-05 | Real costs against the estimate. | R-15 |
+| E-06 | Load, with the limit that load tests are not permitted on SharePoint Online [M31]. | R-22 |
+| E-07 | Operation: minimum alerts (direct access discovered, drift, attempt after suspension, account without an owner, broad grant, containment failure, ledger or digest unavailable, sensitive administrative change), owners and rehearsal. | R-24, R-18 |
+| E-08 | Approve the phase E gate. | All |
 
-## 8. Definição de concluído do MVP
+## 8. Definition of done for the MVP
 
-Secção 18 da especificação. O MVP só está concluído quando um agente real, num ambiente de teste, lê apenas um recurso autorizado, e:
+Section 18 of the specification. The MVP is complete only when a real agent, in a test environment, reads only one authorised resource, and:
 
-- todas as acções relevantes têm evidência;
-- a suspensão bloqueia novas admissões;
-- o runtime e os grants são tratados segundo os adaptadores;
-- os limites dos tokens existentes são medidos;
-- os acessos alternativos são eliminados ou explicitamente classificados;
-- uma pessoa independente consegue repetir os testes a partir do runbook.
+- all relevant actions have evidence;
+- suspension blocks new admissions;
+- the runtime and the grants are handled according to the adapters;
+- the limits of existing tokens are measured;
+- alternative accesses are eliminated or explicitly classified;
+- an independent person can repeat the tests from the runbook.
 
-Uma API com resposta 200, um painel verde ou uma demonstração com mocks não provam contenção. Hoje (fase B) nenhuma destas condições está provada com um agente real.
+An API with a 200 response, a green dashboard or a demonstration with mocks do not prove containment. Today (phase B) none of these conditions is proven with a real agent.
 
-## 9. Fontes
+## 9. Sources
 
-Todas verificadas em 2026-11-11. Prefixo: `https://learn.microsoft.com/en-us/`. "Leitura" indica se a página foi lida por inteiro ou só por excerto de pesquisa.
+All verified on 2026-11-11. Prefix: `https://learn.microsoft.com/en-us/`. "Reading" indicates whether the page was read in full or only as a search excerpt.
 
-| Chave | Caminho | Leitura |
+| Key | Path | Reading |
 |---|---|---|
-| M09 | `entra/identity/managed-identities-azure-resources/managed-identities-faq` | inteira |
-| M14 | `microsoft-agent-365/developer/identity` | inteira |
-| M15 | `microsoft-agent-365/developer/observability-concepts` | inteira |
-| M16 | `microsoft-agent-365/overview` | inteira |
-| M18 | `graph/api/resources/agentidentity?view=graph-rest-1.0` | inteira |
-| M22 | `graph/permissions-selected-overview` | inteira |
-| M31 | `sharepoint/dev/general-development/how-to-avoid-getting-throttled-or-blocked-in-sharepoint-online` | inteira |
-| M32 | `exchange/permissions-exo/application-rbac` | inteira |
-| M34 | `azure/api-management/genai-gateway-capabilities` | inteira |
-| M35 | `azure/api-management/validate-azure-ad-token-policy` | inteira |
-| M39 | `sql/relational-databases/security/ledger/ledger-overview` | inteira |
-| M40 | `sql/relational-databases/security/ledger/ledger-database-verification` | inteira |
-| M41 | `sql/relational-databases/security/ledger/ledger-digest-management` | inteira |
-| M44 | `sql/relational-databases/security/ledger/ledger-append-only-ledger-tables` | inteira |
-| M46 | `azure/storage/blobs/immutable-storage-overview` | inteira |
-| M49 | `azure/confidential-ledger/limits` | inteira |
-| M60 | `entra/agent-id/what-is-microsoft-entra-agent-id` | inteira |
+| M09 | `entra/identity/managed-identities-azure-resources/managed-identities-faq` | full |
+| M14 | `microsoft-agent-365/developer/identity` | full |
+| M15 | `microsoft-agent-365/developer/observability-concepts` | full |
+| M16 | `microsoft-agent-365/overview` | full |
+| M18 | `graph/api/resources/agentidentity?view=graph-rest-1.0` | full |
+| M22 | `graph/permissions-selected-overview` | full |
+| M31 | `sharepoint/dev/general-development/how-to-avoid-getting-throttled-or-blocked-in-sharepoint-online` | full |
+| M32 | `exchange/permissions-exo/application-rbac` | full |
+| M34 | `azure/api-management/genai-gateway-capabilities` | full |
+| M35 | `azure/api-management/validate-azure-ad-token-policy` | full |
+| M39 | `sql/relational-databases/security/ledger/ledger-overview` | full |
+| M40 | `sql/relational-databases/security/ledger/ledger-database-verification` | full |
+| M41 | `sql/relational-databases/security/ledger/ledger-digest-management` | full |
+| M44 | `sql/relational-databases/security/ledger/ledger-append-only-ledger-tables` | full |
+| M46 | `azure/storage/blobs/immutable-storage-overview` | full |
+| M49 | `azure/confidential-ledger/limits` | full |
+| M60 | `entra/agent-id/what-is-microsoft-entra-agent-id` | full |

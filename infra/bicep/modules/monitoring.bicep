@@ -1,29 +1,29 @@
-// Log Analytics e Application Insights.
+// Log Analytics and Application Insights.
 //
-// Monitor e Application Insights não substituem a ledger. Servem para correlação operacional.
+// Monitor and Application Insights do not replace the ledger. They serve for operational correlation.
 //
-// Verificado em Microsoft Learn a 2026-11-11:
+// Verified in Microsoft Learn on 2026-11-11:
 // https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/2026-03-01/workspaces
 // https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2020-02-02/components
-// Natureza do custo: https://learn.microsoft.com/en-us/azure/azure-monitor/fundamentals/cost-usage
+// Nature of the cost: https://learn.microsoft.com/en-us/azure/azure-monitor/fundamentals/cost-usage
 
-@description('Região Azure.')
+@description('Azure region.')
 param location string
 
-@description('Prefixo de nomes, em minúsculas.')
+@description('Name prefix, in lowercase.')
 param namePrefix string
 
-// POR VALIDAR: "Allowed values are per pricing plan." A página não enumera os valores para o plano
-// PerGB2018. Por isso não há valor por omissão: decidir e confirmar antes de aplicar.
-@description('Retenção em dias dos registos do workspace.')
+// TO VALIDATE: "Allowed values are per pricing plan." The page does not enumerate the values for the
+// PerGB2018 plan. That is why there is no default value: decide and confirm before applying.
+@description('Retention in days of the workspace logs.')
 param retentionInDays int
 
-// POR VALIDAR: a semântica de "sem limite" para `dailyQuotaGb` não foi lida. Aqui, 0 significa
-// "não definir limite diário" e a propriedade é omitida.
-@description('Limite diário de ingestão em GB. 0 omite a propriedade.')
+// TO VALIDATE: the semantics of "no limit" for `dailyQuotaGb` were not read. Here, 0 means
+// "do not set a daily limit" and the property is omitted.
+@description('Daily ingestion limit in GB. 0 omits the property.')
 param dailyQuotaGb int = 0
 
-@description('Etiquetas comuns.')
+@description('Common tags.')
 param tags object = {}
 
 resource workspace 'Microsoft.OperationalInsights/workspaces@2026-03-01' = {
@@ -41,10 +41,10 @@ resource workspace 'Microsoft.OperationalInsights/workspaces@2026-03-01' = {
   }
 }
 
-// Nota: os nomes das propriedades deste tipo têm maiúscula inicial (Application_Type,
-// WorkspaceResourceId, IngestionMode). É assim na referência.
-// POR VALIDAR: `DisableLocalAuth` não é definido. Desligar a autenticação local obriga a atribuir
-// papel de publicação de métricas a cada identidade, o que fica fora deste Bicep.
+// Note: the property names of this type start with a capital letter (Application_Type,
+// WorkspaceResourceId, IngestionMode). That is how they are in the reference.
+// TO VALIDATE: `DisableLocalAuth` is not set. Turning off local authentication requires assigning
+// the metrics publisher role to each identity, which is outside this Bicep.
 resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   name: '${namePrefix}-appi'
   location: location

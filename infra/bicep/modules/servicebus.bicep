@@ -1,53 +1,53 @@
-// Namespace Service Bus e fila de contenção.
+// Service Bus namespace and containment queue.
 //
-// Verificado em Microsoft Learn a 2026-11-11:
+// Verified in Microsoft Learn on 2026-11-11:
 // https://learn.microsoft.com/en-us/azure/templates/microsoft.servicebus/2026-01-01/namespaces
 // https://learn.microsoft.com/en-us/azure/templates/microsoft.servicebus/2026-01-01/namespaces/queues
 // https://learn.microsoft.com/en-us/azure/service-bus-messaging/duplicate-detection
 // https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-dead-letter-queues
 //
-// Papel da fila no desenho: a outbox vive na base de dados. Se o bus estiver indisponível, o
-// bloqueio local continua eficaz. A fila só transporta pedidos de contenção. Mensagens de epoch
-// anterior são descartadas pelo consumidor como "superseded". O worker nunca reactiva um agente.
+// Role of the queue in the design: the outbox lives in the database. If the bus is unavailable, the
+// local block remains effective. The queue only carries containment requests. Messages from an
+// earlier epoch are discarded by the consumer as "superseded". The worker never reactivates an agent.
 //
-// O que a fila NÃO resolve:
-// - A entrega é pelo menos uma vez (peek lock). O consumidor tem de ser idempotente.
-// - A detecção de duplicados cobre o ENVIO (mesmo MessageId dentro da janela). Não cobre a reentrega
-//   ao consumidor. Para a detecção funcionar, o produtor tem de usar um MessageId estável por
-//   mensagem de outbox.
-// - A dead-letter queue não se limpa sozinha. Alguém tem de a esvaziar (README e runbooks).
+// What the queue does NOT solve:
+// - Delivery is at least once (peek lock). The consumer must be idempotent.
+// - Duplicate detection covers SENDING (same MessageId within the window). It does not cover
+//   redelivery to the consumer. For detection to work, the producer must use a stable MessageId per
+//   outbox message.
+// - The dead-letter queue does not clean itself. Someone has to empty it (README and runbooks).
 
-@description('Região Azure.')
+@description('Azure region.')
 param location string
 
-@description('Prefixo de nomes, em minúsculas.')
+@description('Name prefix, in lowercase.')
 param namePrefix string
 
-// POR VALIDAR: os valores de `sku.name` não foram extraídos da referência. Os nomes dos níveis
-// vêm da página de duplicate detection (basic, standard, premium). Basic não suporta detecção de
-// duplicados, por isso só se aceitam Standard e Premium. Confirmar a grafia exacta (maiúsculas)
-// na referência antes de aplicar.
+// TO VALIDATE: the `sku.name` values were not extracted from the reference. The tier names come
+// from the duplicate detection page (basic, standard, premium). Basic does not support duplicate
+// detection, so only Standard and Premium are accepted. Confirm the exact spelling (capitalisation)
+// in the reference before applying.
 @allowed([
   'Standard'
   'Premium'
 ])
-@description('Nível do namespace. Detecção de duplicados exige Standard ou Premium.')
+@description('Namespace tier. Duplicate detection requires Standard or Premium.')
 param serviceBusSkuName string
 
-// Valor por omissão da documentação: 10 minutos. Intervalo: 20 segundos a 7 dias, formato ISO 8601.
-@description('Janela de detecção de duplicados (ISO 8601).')
+// Documentation default: 10 minutes. Range: 20 seconds to 7 days, ISO 8601 format.
+@description('Duplicate detection window (ISO 8601).')
 param duplicateDetectionWindow string = 'PT10M'
 
-// Valor por omissão da documentação: 10.
+// Documentation default: 10.
 @minValue(1)
-@description('Entregas antes de a mensagem ir para a dead-letter queue.')
+@description('Deliveries before the message goes to the dead-letter queue.')
 param maxDeliveryCount int = 10
 
-// Máximo documentado: 5 minutos. Por omissão: 1 minuto.
-@description('Duração do bloqueio de mensagem (ISO 8601).')
+// Documented maximum: 5 minutes. Default: 1 minute.
+@description('Message lock duration (ISO 8601).')
 param lockDuration string = 'PT1M'
 
-@description('Etiquetas comuns.')
+@description('Common tags.')
 param tags object = {}
 
 resource sbNamespace 'Microsoft.ServiceBus/namespaces@2026-01-01' = {
@@ -59,7 +59,7 @@ resource sbNamespace 'Microsoft.ServiceBus/namespaces@2026-01-01' = {
     tier: serviceBusSkuName
   }
   properties: {
-    // Sem SAS: só autenticação Entra. Os papéis de dados ficam fora do Bicep (README).
+    // No SAS: Entra authentication only. The data roles stay outside the Bicep (README).
     disableLocalAuth: true
     minimumTlsVersion: '1.2'
   }
@@ -73,12 +73,12 @@ resource containmentQueue 'Microsoft.ServiceBus/namespaces/queues@2026-01-01' = 
     duplicateDetectionHistoryTimeWindow: duplicateDetectionWindow
     maxDeliveryCount: maxDeliveryCount
     lockDuration: lockDuration
-    // A dead-letter queue existe sempre e não se declara. Esta propriedade trata só a expiração
-    // por TTL: mensagens expiradas vão para a DLQ em vez de desaparecerem.
+    // The dead-letter queue always exists and is not declared. This property only handles expiry
+    // by TTL: expired messages go to the DLQ instead of disappearing.
     deadLetteringOnMessageExpiration: true
-    // Sem sessões. POR VALIDAR: se `requiresSession` pode ser alterado depois da criação, e a
-    // disponibilidade de sessões por nível, não foi verificado. Ordem não é garantida: o consumidor
-    // revalida estado e epoch, não depende da ordem.
+    // No sessions. TO VALIDATE: whether `requiresSession` can be changed after creation, and the
+    // availability of sessions per tier, was not verified. Order is not guaranteed: the consumer
+    // revalidates status and epoch, it does not depend on order.
     requiresSession: false
   }
 }

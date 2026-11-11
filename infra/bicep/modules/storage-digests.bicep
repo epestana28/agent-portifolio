@@ -1,59 +1,60 @@
-// Conta de armazenamento e contentor de digests da ledger do Azure SQL.
+// Storage account and container for the Azure SQL ledger digests.
 //
-// Destino base dos digests: Blob com política de imutabilidade (WORM) ao nível do contentor.
-// O Azure Confidential Ledger fica como opção avaliada na Fase A e não é criado aqui (o tipo e a
-// apiVersion Bicep dele não foram verificados).
+// Base destination of the digests: Blob with an immutability policy (WORM) at container level.
+// Azure Confidential Ledger remains an option to be assessed in Phase A and is not created here
+// (its Bicep type and apiVersion were not verified).
 //
-// Verificado em Microsoft Learn a 2026-11-11:
+// Verified in Microsoft Learn on 2026-11-11:
 // https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/2026-09-01/storageaccounts
 // https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/2026-09-01/storageaccounts/blobservices/containers
 // https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/2026-09-01/storageaccounts/blobservices/containers/immutabilitypolicies
 // https://learn.microsoft.com/en-us/sql/relational-databases/security/ledger/ledger-digest-management
 // https://learn.microsoft.com/en-us/azure/storage/blobs/immutable-container-level-worm-policies
 //
-// POLÍTICA DE IMUTABILIDADE: NÃO BLOQUEADA, DE PROPÓSITO
+// IMMUTABILITY POLICY: NOT LOCKED, ON PURPOSE
 // -------------------------------------------------------
-// A política criada aqui fica no estado desbloqueado. A documentação diz que uma política
-// desbloqueada protege contra eliminação e substituição, mas pode ser encurtada ou apagada, e
-// recomenda-a só para testes de curta duração. O bloqueio (lock) é um passo manual, feito depois
-// de aprovada a retenção, porque:
-// - depois de bloqueada, a política não se apaga e o período só pode aumentar (máximo de cinco
-//   aumentos numa política ao nível do contentor);
-// - depois de bloqueada, `allowProtectedAppendWrites` já não pode ser alterada;
-// - a conta de armazenamento não pode ser eliminada enquanto houver um contentor com política
-//   bloqueada e blobs presentes, nem antes de a retenção expirar;
-// - a retenção tem de estar decidida (RGPD, custo, residência) antes de se tornar irreversível.
-// O lock não está confirmado como declarável em Bicep (NÃO VERIFICADO na pesquisa). O comando
-// documentado é `az storage container immutability-policy lock ... --if-match $etag`. Ver README.
+// The policy created here stays in the unlocked state. The documentation says that an unlocked
+// policy protects against deletion and overwriting, but can be shortened or deleted, and
+// recommends it only for short-lived tests. Locking is a manual step, done after the retention has
+// been approved, because:
+// - once locked, the policy cannot be deleted and the period can only increase (a maximum of five
+//   increases on a container-level policy);
+// - once locked, `allowProtectedAppendWrites` can no longer be changed;
+// - the storage account cannot be deleted while there is a container with a locked policy and
+//   blobs present, nor before the retention has expired;
+// - the retention has to be decided (GDPR, cost, residency) before it becomes irreversible.
+// It is not confirmed that the lock can be declared in Bicep (NOT VERIFIED in the research). The
+// documented command is `az storage container immutability-policy lock ... --if-match $etag`. See
+// README.
 
-@description('Região Azure.')
+@description('Azure region.')
 param location string
 
-@description('Prefixo de nomes, em minúsculas e sem hífenes, com no máximo 9 caracteres (limite de 24 do nome da conta).')
+@description('Name prefix, in lower case and without hyphens, with at most 9 characters (24-character limit on the account name).')
 param namePrefix string
 
-// A documentação da ledger indica que o upload automático de digests não suporta contas LRS.
-// Não existe valor por omissão: a redundância é uma decisão da Fase A.
+// The ledger documentation states that automatic digest upload does not support LRS accounts.
+// There is no default value: redundancy is a Phase A decision.
 @allowed([
   'Standard_GRS'
   'Standard_GZRS'
   'Standard_RAGRS'
   'Standard_RAGZRS'
 ])
-@description('Redundância da conta. LRS não é suportado para digests automáticos.')
+@description('Account redundancy. LRS is not supported for automatic digests.')
 param storageSkuName string
 
-// Intervalo documentado: 1 a 146000 dias. Sem valor por omissão: a documentação avisa que o valor
-// de 1 dia do quickstart não serve para produção, e a decisão é da Fase A.
+// Documented range: 1 to 146000 days. No default value: the documentation warns that the 1-day
+// value in the quickstart is not suitable for production, and the decision belongs to Phase A.
 @minValue(1)
 @maxValue(146000)
-@description('Retenção, em dias, da política de imutabilidade do contentor (antes do lock).')
+@description('Retention, in days, of the container immutability policy (before the lock).')
 param immutabilityPeriodInDays int
 
-@description('Etiquetas comuns.')
+@description('Common tags.')
 param tags object = {}
 
-// Nome fixo documentado: o servidor lógico do Azure SQL usa este contentor.
+// Documented fixed name: the Azure SQL logical server uses this container.
 var containerName = 'sqldbledgerdigests'
 var accountName = toLower('${namePrefix}dg${uniqueString(resourceGroup().id)}')
 
@@ -70,22 +71,23 @@ resource account 'Microsoft.Storage/storageAccounts@2026-09-01' = {
     minimumTlsVersion: 'TLS1_2'
     supportsHttpsTrafficOnly: true
     defaultToOAuthAuthentication: true
-    // POR VALIDAR: a documentação diz que o servidor SQL escreve os digests com RBAC (papel
-    // Storage Blob Data Contributor). Não foi verificado que o upload funciona com chaves
-    // partilhadas desligadas. Se falhar na Fase C, esta linha é a primeira a rever.
+    // TO VALIDATE: the documentation says that the SQL server writes the digests with RBAC (Storage
+    // Blob Data Contributor role). It was not verified that the upload works with shared keys
+    // switched off. If it fails in Phase C, this line is the first to review.
     allowSharedKeyAccess: false
-    // POR VALIDAR: `publicNetworkAccess` e firewall da conta não são definidos. O comportamento
-    // do upload de digests com rede restrita não foi verificado.
+    // TO VALIDATE: `publicNetworkAccess` and the account firewall are not set. The behaviour of
+    // digest upload with a restricted network was not verified.
   }
 }
 
-// POR VALIDAR: a documentação diz que o servidor "creates a new container" e que a política se
-// configura "after provisioning". Se o contentor pode ser criado aqui, com política, antes do
-// primeiro upload, não está confirmado. Se o upload falhar por o contentor já existir, remover
-// estes dois recursos e criar a política depois do primeiro upload, como no quickstart.
+// TO VALIDATE: the documentation says that the server "creates a new container" and that the policy
+// is configured "after provisioning". Whether the container can be created here, with a policy,
+// before the first upload is not confirmed. If the upload fails because the container already
+// exists, remove these two resources and create the policy after the first upload, as in the
+// quickstart.
 //
-// O tipo `blobServices` não consta da tabela de tipos verificados. Os nomes completos abaixo
-// evitam declará-lo e usam apenas os tipos verificados.
+// The `blobServices` type is not in the verified type table. The full names below avoid declaring
+// it and use only the verified types.
 resource container 'Microsoft.Storage/storageAccounts/blobServices/containers@2026-09-01' = {
   name: '${account.name}/default/${containerName}'
   properties: {
@@ -97,15 +99,15 @@ resource immutability 'Microsoft.Storage/storageAccounts/blobServices/containers
   name: '${container.name}/default'
   properties: {
     immutabilityPeriodSinceCreationInDays: immutabilityPeriodInDays
-    // Necessário para os digests: são append blobs.
+    // Required for the digests: they are append blobs.
     allowProtectedAppendWrites: true
-    // Sem `state` e sem lock: ver o cabeçalho deste ficheiro.
+    // No `state` and no lock: see the header of this file.
   }
 }
 
 output accountName string = account.name
 output accountId string = account.id
 output containerName string = containerName
-// Ponto final de blobs construído a partir do sufixo do ambiente. É o valor que o
-// `ledgerDigestUploads` espera em `digestStorageEndpoint`.
+// Blob endpoint built from the environment suffix. It is the value that `ledgerDigestUploads`
+// expects in `digestStorageEndpoint`.
 output blobEndpoint string = 'https://${account.name}.blob.${environment().suffixes.storage}'

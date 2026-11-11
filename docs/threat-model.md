@@ -1,423 +1,423 @@
 # Threat model
 
-Projecto: Agent Portifolio. Documento da fase A, secção 14 da especificação. Data de verificação das fontes Microsoft: 2026-11-11.
+Project: Agent Portifolio. Phase A document, section 14 of the specification. Verification date of the Microsoft sources: 2026-11-11.
 
-Estado do projecto, sem exagero: a fase A (validação) foi escrita a partir de documentação oficial e sem tenant. A fase B (fatia vertical local) está implementada em .NET 8, sem credenciais reais, e o mundo Microsoft é simulado. As fases C, D e E não foram executadas. O Bicep está escrito e nunca foi aplicado. Não existe nenhum adaptador real para Entra nem para Graph. Tudo o que depende do tenant fica marcado "POR VALIDAR NO TENANT".
+Project status, without exaggeration: phase A (validation) was written from official documentation and without a tenant. Phase B (local vertical slice) is implemented in .NET 8, without real credentials, and the Microsoft world is simulated. Phases C, D and E have not been executed. The Bicep is written and has never been applied. There is no real adapter for Entra or for Graph. Everything that depends on the tenant is marked "TO BE VALIDATED IN THE TENANT".
 
-## 1. Convenções
+## 1. Conventions
 
-Cada afirmação sobre a Microsoft leva uma chave `Mxx` que remete para a tabela de fontes no fim do documento, com URL do Microsoft Learn e data de verificação 2026-11-11.
+Every statement about Microsoft carries an `Mxx` key that points to the source table at the end of the document, with the Microsoft Learn URL and verification date 2026-11-11.
 
-Três níveis de certeza, sempre separados:
+Three levels of certainty, always kept separate:
 
-- Verificado em documentação: o texto oficial afirma-o.
-- Inferência: conclusão deste projecto a partir de factos verificados. A Microsoft não a afirma.
-- Por validar no tenant: não pode ser decidido sem tenant. Nada disto é tratado como facto.
+- Verified in documentation: the official text states it.
+- Inference: a conclusion of this project drawn from verified facts. Microsoft does not state it.
+- To be validated in the tenant: it cannot be decided without a tenant. None of this is treated as fact.
 
-"NÃO VERIFICADO" quer dizer que a documentação lida não o afirma. Não quer dizer que seja falso.
+"NOT VERIFIED" means that the documentation read does not state it. It does not mean that it is false.
 
-Identificadores de teste:
+Test identifiers:
 
-- `BT-01` a `BT-20` são os testes bloqueantes da secção 15 da especificação, pela mesma ordem. Lista na secção 5 deste documento.
-- `TC-nn` são testes que a especificação não cobre. O número `nn` é o da ameaça (T-nn). Lista na secção 6. Os `TC` locais existem em parte, como diz cada ameaça; os de fase C e D não existem.
+- `BT-01` to `BT-20` are the blocking tests from section 15 of the specification, in the same order. List in section 5 of this document.
+- `TC-nn` are tests that the specification does not cover. The number `nn` is the threat number (T-nn). List in section 6. The local `TC` tests exist in part, as each threat says. The phase C and D ones do not exist.
 
-Estado local dos BT, confirmado contra a suite em 2026-11-11 (78 testes, 78 passados com `AP_TEST_SQL` definido contra SQL Server 2022 real, 73 passados e 5 ignorados sem ela): BT-05, BT-17 e BT-20 só ficam provados nas fases C e D. BT-06, BT-13 e BT-14 só existem em simulação. Localmente existe no máximo uma aproximação simulada, que NÃO conta como prova. Os restantes têm prova local, sobre o mundo simulado, e BT-08, BT-10 e BT-16 têm também teste contra SQL Server 2022 real. O detalhe, com os nomes dos testes, está em `test-plan.md`.
+Local status of the BT tests, confirmed against the suite on 2026-11-11 (78 tests, 78 passed with `AP_TEST_SQL` set against a real SQL Server 2022, 73 passed and 5 skipped without it): BT-05, BT-17 and BT-20 are only proven in phases C and D. BT-06, BT-13 and BT-14 exist only in simulation. Locally there is at most a simulated approximation, which does NOT count as proof. The others have local proof, over the simulated world, and BT-08, BT-10 and BT-16 also have a test against a real SQL Server 2022. The detail, with the test names, is in `test-plan.md`.
 
-Os nomes de componentes seguem o código de `src/Core` (`AuthorizationEngine`, `OperationCatalog`, `ResourceCanonicalizer`, `ExecutionService`, `IWalletStore.TransactAsync`, `IDocumentGateway`, `IContainmentAdapter`, `ReasonCodes`, `EventTypes`). `ControlService`, `ContainmentOrchestrator` e `ReconciliationService` existem agora em `src/Core/Services`.
+Component names follow the code in `src/Core` (`AuthorizationEngine`, `OperationCatalog`, `ResourceCanonicalizer`, `ExecutionService`, `IWalletStore.TransactAsync`, `IDocumentGateway`, `IContainmentAdapter`, `ReasonCodes`, `EventTypes`). `ControlService`, `ContainmentOrchestrator` and `ReconciliationService` now exist in `src/Core/Services`.
 
-Owners: nenhum foi atribuído. Cada ameaça indica "por atribuir" com o papel sugerido. A atribuição é decisão do dono do projecto e faz parte do gate da fase A.
+Owners: none has been assigned. Each threat states "to be assigned" with the suggested role. The assignment is a decision for the project owner and is part of the phase A gate.
 
-## 2. Fronteiras de confiança
+## 2. Trust boundaries
 
-Fonte: secção 5 da especificação. A fronteira F8 é uma inferência da secção 13 (papéis separados, IaC, acesso privilegiado) e não consta da lista da secção 5.
+Source: section 5 of the specification. Boundary F8 is an inference from section 13 (separate roles, IaC, privileged access) and is not in the list in section 5.
 
-| Id | Fronteira | Quem está de cada lado | Regra de desenho |
+| Id | Boundary | Who is on each side | Design rule |
 |---|---|---|---|
-| F1 | Agente para gateway | Agente e runtime (não confiáveis) contra APIM | O agente não é confiável para autorização, identidade declarada nem auditoria. O chamador vem de token validado. |
-| F2 | Gateway para executor | APIM contra PolicyExecutor | O backend não pode ser contornável. O executor valida também o token e lê o estado autoritativo. |
-| F3 | Executor para Microsoft Graph | PolicyExecutor contra Graph e SharePoint | A credencial de dados fica no executor. O agente nunca a recebe. Uma identidade de execução por agente. |
-| F4 | Operador para API de controlo | Pessoas contra ControlApi | Autenticação Entra e papéis Reader, IncidentOperator, PolicyAdmin, Auditor. A identidade de controlo não é usada pelo runtime do agente. |
-| F5 | Serviços para SQL | ControlApi, PolicyExecutor e ContainmentWorker contra SQL | Estado, políticas, outbox e ledger. Todas as consultas levam o tenant. Uma única porta transaccional. |
-| F6 | Worker para o mundo externo | ContainmentWorker contra Entra, runtime e recursos | Adaptadores idempotentes, com timeout, retentativas limitadas e sonda de verificação. |
-| F7 | SQL para digests | Base de dados contra armazenamento independente de digests | Os digests só valem se o destino não for adulterável por quem tem privilégios na base de dados [M41]. |
-| F8 | Plano de gestão | Quem edita Azure RBAC, políticas APIM, Bicep e CI contra tudo o resto | Fora da aplicação. A aplicação não consegue defender-se de quem controla a plataforma. Só a ledger e os digests dão evidência. |
+| F1 | Agent to gateway | Agent and runtime (untrusted) against APIM | The agent is not trusted for authorisation, declared identity or audit. The caller comes from a validated token. |
+| F2 | Gateway to executor | APIM against PolicyExecutor | The backend must not be bypassable. The executor also validates the token and reads the authoritative state. |
+| F3 | Executor to Microsoft Graph | PolicyExecutor against Graph and SharePoint | The data credential stays in the executor. The agent never receives it. One execution identity per agent. |
+| F4 | Operator to control API | People against ControlApi | Entra authentication and roles Reader, IncidentOperator, PolicyAdmin, Auditor. The control identity is not used by the agent runtime. |
+| F5 | Services to SQL | ControlApi, PolicyExecutor and ContainmentWorker against SQL | State, policies, outbox and ledger. All queries carry the tenant. A single transactional port. |
+| F6 | Worker to the outside world | ContainmentWorker against Entra, runtime and resources | Idempotent adapters, with timeout, bounded retries and a verification probe. |
+| F7 | SQL to digests | Database against independent digest storage | Digests are only worth something if the destination cannot be tampered with by those who hold privileges on the database [M41]. |
+| F8 | Management plane | Those who edit Azure RBAC, APIM policies, Bicep and CI against everything else | Outside the application. The application cannot defend itself against whoever controls the platform. Only the ledger and the digests give evidence. |
 
-Diagrama de texto:
+Text diagram:
 
 ```text
- NÃO CONFIÁVEL                |            CONFIÁVEL (controlado pela equipa)
+ UNTRUSTED                    |            TRUSTED (controlled by the team)
                               |
- [Agente + runtime]           |
-        |  token Entra        |
+ [Agent + runtime]            |
+        |  Entra token        |
         v                     |
        (F1)                   |
         |                     |
         +-------------------> [APIM] --(F2)--> [PolicyExecutor] --(F3)--> [Microsoft Graph / SharePoint]
-                              |                       |                     (credencial só aqui;
-                              |                       | (F5)                 302 para URL pré-autenticado
-                              |                       v                      noutro anfitrião)
- [Operador] --Entra--(F4)---> [ControlApi] --(F5)--> [SQL: estado, outbox, ap.AuditEvent (ledger)]
+                              |                       |                     (credential only here;
+                              |                       | (F5)                 302 to pre-authenticated URL
+                              |                       v                      on another host)
+ [Operator] --Entra--(F4)---> [ControlApi] --(F5)--> [SQL: state, outbox, ap.AuditEvent (ledger)]
                               |                       |                |
                               |                       | outbox         | (F7) digests
                               |                       v                v
-                              |              [ContainmentWorker]   [Armazenamento imutável]
+                              |              [ContainmentWorker]   [Immutable storage]
                               |                       |
-                              |                       +--(F6)--> [Entra | runtime | grants no recurso]
+                              |                       +--(F6)--> [Entra | runtime | grants on the resource]
                               |
- F8: plano de gestão (Azure RBAC, políticas APIM, Bicep, CI) atravessa todos os blocos confiáveis
+ F8: management plane (Azure RBAC, APIM policies, Bicep, CI) crosses all trusted blocks
 ```
 
-Duas consequências que o diagrama obriga a ter presentes.
+Two consequences that the diagram makes it necessary to keep in mind.
 
-Primeira: o destino final do tráfego de dados é o Graph, um serviço público da Microsoft. Os mecanismos de rede documentados para APIM (rede virtual, private endpoint, lista de IPs, mTLS) aplicam-se ao troço gateway para executor [M55]. A documentação lida não mostra forma de restringir o Graph a aceitar pedidos só de um APIM (inferência). O que impede o contorno do gateway é o agente não possuir credencial Graph.
+First: the final destination of the data traffic is Graph, a public Microsoft service. The documented network mechanisms for APIM (virtual network, private endpoint, IP list, mTLS) apply to the gateway to executor leg [M55]. The documentation read shows no way to restrict Graph to accept requests only from one APIM (inference). What prevents bypassing the gateway is that the agent does not hold a Graph credential.
 
-Segunda: o conteúdo de um ficheiro descarregado segue um redireccionamento 302 para um URL pré-autenticado noutro anfitrião [M25]. Esse tráfego não passa pelo APIM quando é o chamador a segui-lo. Por isso quem segue o redireccionamento é o executor.
+Second: the content of a downloaded file follows a 302 redirect to a pre-authenticated URL on another host [M25]. That traffic does not pass through APIM when the caller is the one following it. For that reason it is the executor that follows the redirect.
 
-## 3. Ameaças
+## 3. Threats
 
-Cada entrada tem: fronteira, pré-condição, mitigação (o que o desenho faz, com o componente), teste, evidência, risco residual e owner.
+Each entry has: boundary, precondition, mitigation (what the design does, with the component), test, evidence, residual risk and owner.
 
 ### T-01 Prompt injection
 
-- **Fronteira:** F1 (o agente é não confiável), com efeito em F2 e F3.
-- **Pré-condição:** um documento lido ou uma entrada do utilizador contém instruções que levam o agente a pedir operações ou recursos fora do âmbito aprovado.
-- **Mitigação:** a decisão de acesso não usa modelo. O `AuthorizationEngine` é determinístico, sem I/O, sem cache e sem relógio próprio. O `OperationCatalog` é uma lista fechada com duas operações (`sharepoint.document.read` e `sharepoint.document.list`). Os argumentos têm de ser exactamente os esperados (nomes e número). Não há URL, caminho nem parâmetro extra. A capacidade liga agente, acção e recurso canónico. O limite por hora (`WalletLimits.MaxActionsPerHour`) trava volume. O sistema só estreita o que a autoridade externa permite, nunca alarga.
-- **Teste:** BT-01 (recurso não autorizado falha). TC-01 em parte (local): `Unknown_missing_or_extra_arguments_are_rejected`, `Item_identifiers_cannot_carry_paths_or_queries` e `Generic_proxy_batch_and_arbitrary_urls_are_impossible` cobrem URL, `..` e parâmetros em excesso. Texto de instruções embutido e a prova de que `IDocumentGateway` não é chamado não têm teste dedicado.
-- **Evidência:** evento `action.denied` com `reason_code`, e ausência de `action.admitted` para o mesmo `correlation_id`.
-- **Risco residual:** o produto não inspecciona o conteúdo devolvido ao agente. Uma injecção que peça só o que o agente já pode ler dentro do âmbito autorizado é executada, e o resultado pode ser reencaminhado pelo agente (ver T-20). O limite por hora reduz volume e não impede o primeiro pedido.
-- **Owner:** por atribuir (papel sugerido: responsável de segurança aplicacional, com o owner do agente).
+- **Boundary:** F1 (the agent is untrusted), with effect on F2 and F3.
+- **Precondition:** a document that was read or a user input contains instructions that lead the agent to request operations or resources outside the approved scope.
+- **Mitigation:** the access decision does not use a model. The `AuthorizationEngine` is deterministic, with no I/O, no cache and no clock of its own. The `OperationCatalog` is a closed list with two operations (`sharepoint.document.read` and `sharepoint.document.list`). The arguments must be exactly the expected ones (names and number). There is no URL, path or extra parameter. The capability binds agent, action and canonical resource. The hourly limit (`WalletLimits.MaxActionsPerHour`) brakes volume. The system only narrows what the external authority allows, never widens it.
+- **Test:** BT-01 (unauthorised resource fails). TC-01 in part (local): `Unknown_missing_or_extra_arguments_are_rejected`, `Item_identifiers_cannot_carry_paths_or_queries` and `Generic_proxy_batch_and_arbitrary_urls_are_impossible` cover URL, `..` and extra parameters. Embedded instruction text and the proof that `IDocumentGateway` is not called have no dedicated test.
+- **Evidence:** `action.denied` event with `reason_code`, and absence of `action.admitted` for the same `correlation_id`.
+- **Residual risk:** the product does not inspect the content returned to the agent. An injection that asks only for what the agent can already read within the authorised scope is executed, and the result can be forwarded by the agent (see T-20). The hourly limit reduces volume and does not prevent the first request.
+- **Owner:** to be assigned (suggested role: application security lead, with the agent owner).
 
-### T-02 Roubo de token
+### T-02 Token theft
 
-- **Fronteira:** F1 e F3. Três credenciais distintas: token Entra do agente para o gateway, credencial de dados do executor, e URL pré-autenticado de download.
-- **Pré-condição:** o atacante obtém o token do agente (memória ou logs do runtime) ou a credencial do executor.
-- **Mitigação:** o agente nunca recebe a credencial Graph, que fica no `PolicyExecutor`. O token do agente só serve para o gateway. O APIM valida o token com `validate-azure-ad-token` e o modelo de política obriga a `audiences` e a aplicação cliente esperada, porque só o `tenant-id` é obrigatório e uma política só com ele aceitaria qualquer token do tenant (inferência) [M35]. O executor valida o token outra vez, porque a Microsoft recomenda validar sempre no backend e avisa que "tokens can be replayed" [M38]. Há uma identidade de execução por agente (`ExecutorObjectId`), por isso uma credencial de executor roubada fica limitada ao âmbito de um agente. A capacidade interna é referência opaca e não token ao portador. A ledger nunca guarda tokens (BT-18). A suspensão bloqueia a admissão pelo estado autoritativo, mesmo com token ainda válido.
-- **Teste:** BT-02 (chamador e tenant falsificados falham), local. BT-06 (agente sem credencial alternativa para Graph) e BT-14 (token previamente emitido testado e resultado real reportado) só nas fases C e D. TC-02 a criar (fase C): token válido do tenant com outra audiência ou de outra aplicação cliente recebe 401 no APIM e é recusado no executor.
-- **Evidência:** `action.denied` com `agent_suspended` mais `alert.post_suspension_attempt`; resultado medido de BT-14 por recurso e por tipo de identidade.
-- **Risco residual:** a documentação não garante invalidar access tokens já emitidos. Desactivar e revogar impede tokens novos, e para aplicações que usam access tokens "the user loses access when the access token expires" [M01]. A duração por omissão tem fontes em desacordo: 60 a 90 minutos, média 75 [M07] [M08], contra 1 hora [M01]. Usar 90 minutos como pior caso sem CAE. Com CAE os tokens podem durar até 28 horas para utilizadores [M02] e até 24 horas para workload identities [M03]. CAE para workload identities só cobre Microsoft Graph, service principals single-tenant de aplicações de linha de negócio, e exige o cliente declarar `cp1` [M03]. Managed identities não são suportadas por CAE e têm cache de token de cerca de 24 horas, sem refresh forçado [M03] [M09]. Se CAE cobre agent identities: NÃO VERIFICADO [M04]. O que o gateway nega após suspensão continua válido no Entra até expirar, e contra o Graph directo o token roubado funciona se o agente tiver grant directo (cobertura `DirectAccessPossible`).
-- **Owner:** por atribuir (papel sugerido: arquitecto de identidade, com o administrador Entra).
+- **Boundary:** F1 and F3. Three distinct credentials: the agent's Entra token for the gateway, the executor's data credential, and the pre-authenticated download URL.
+- **Precondition:** the attacker obtains the agent's token (runtime memory or logs) or the executor's credential.
+- **Mitigation:** the agent never receives the Graph credential, which stays in the `PolicyExecutor`. The agent's token only works for the gateway. APIM validates the token with `validate-azure-ad-token` and the policy model requires `audiences` and the expected client application, because only `tenant-id` is mandatory and a policy with only that would accept any token from the tenant (inference) [M35]. The executor validates the token again, because Microsoft recommends always validating in the backend and warns that "tokens can be replayed" [M38]. There is one execution identity per agent (`ExecutorObjectId`), so a stolen executor credential is limited to the scope of one agent. The internal capability is an opaque reference and not a bearer token. The ledger never stores tokens (BT-18). Suspension blocks admission through the authoritative state, even with a token that is still valid.
+- **Test:** BT-02 (forged caller and tenant fail), local. BT-06 (agent without an alternative credential for Graph) and BT-14 (previously issued token tested and real result reported) only in phases C and D. TC-02 to be created (phase C): a valid token from the tenant with another audience or from another client application receives 401 at APIM and is refused at the executor.
+- **Evidence:** `action.denied` with `agent_suspended` plus `alert.post_suspension_attempt`; measured result of BT-14 by resource and by identity type.
+- **Residual risk:** the documentation does not guarantee invalidating access tokens already issued. Disabling and revoking prevents new tokens, and for applications that use access tokens "the user loses access when the access token expires" [M01]. The default lifetime has sources in disagreement: 60 to 90 minutes, average 75 [M07] [M08], against 1 hour [M01]. Use 90 minutes as the worst case without CAE. With CAE, tokens can last up to 28 hours for users [M02] and up to 24 hours for workload identities [M03]. CAE for workload identities only covers Microsoft Graph, single-tenant service principals of line-of-business applications, and requires the client to declare `cp1` [M03]. Managed identities are not supported by CAE and have a token cache of about 24 hours, with no forced refresh [M03] [M09]. Whether CAE covers agent identities: NOT VERIFIED [M04]. What the gateway denies after suspension remains valid in Entra until it expires, and against Graph directly the stolen token works if the agent has a direct grant (coverage `DirectAccessPossible`).
+- **Owner:** to be assigned (suggested role: identity architect, with the Entra administrator).
 
 ### T-03 Replay
 
-- **Fronteira:** F1, F2 e F5. Três replays diferentes: do token no gateway, do pedido `POST /actions`, e de mensagens de contenção.
-- **Pré-condição:** o atacante, ou uma falha de rede, repete um pedido ou mensagem já visto.
-- **Mitigação:** pedido repetido: a chave de idempotência é obrigatória e valida-se por formato. Mesma chave e mesmos argumentos devolvem o resultado anterior sem repetir o efeito e sem payload. Mesma chave com argumentos diferentes dá `idempotency_conflict`. Token repetido: o estado autoritativo é lido de novo em cada admissão, por isso um token capturado antes da suspensão não passa depois dela. Antes da suspensão, um replay do token é indistinguível de uso legítimo, porque o token é ao portador. Mensagens: ver T-14.
-- **Teste:** BT-10 (repetição de mensagem não duplica efeito) e BT-03 (suspensão invalida capacidade anterior ainda dentro da validade), locais. TC-03 a criar (fase C): token capturado antes da suspensão e reutilizado depois recebe `agent_suspended` através do APIM real.
-- **Evidência:** `idempotent_replay` e `in_progress` nas respostas, `Attempt` no registo da acção, `alert.post_suspension_attempt`.
-- **Risco residual:** com o agente activo, um replay dentro da validade do token executa operações permitidas. O limite por hora e a idempotência reduzem o efeito. A Microsoft avisa que as configurações de gateway podem mudar e os tokens podem ser repetidos [M38].
-- **Owner:** por atribuir (papel sugerido: engenheiro de plataforma responsável pelo PolicyExecutor).
+- **Boundary:** F1, F2 and F5. Three different replays: of the token at the gateway, of the `POST /actions` request, and of containment messages.
+- **Precondition:** the attacker, or a network fault, repeats a request or message already seen.
+- **Mitigation:** repeated request: the idempotency key is mandatory and its format is validated. The same key and the same arguments return the previous result without repeating the effect and without payload. The same key with different arguments gives `idempotency_conflict`. Repeated token: the authoritative state is read again on every admission, so a token captured before the suspension does not pass after it. Before the suspension, a token replay is indistinguishable from legitimate use, because the token is a bearer token. Messages: see T-14.
+- **Test:** BT-10 (message repetition does not duplicate the effect) and BT-03 (suspension invalidates a previous capability still within its validity), local. TC-03 to be created (phase C): a token captured before the suspension and reused afterwards receives `agent_suspended` through the real APIM.
+- **Evidence:** `idempotent_replay` and `in_progress` in the responses, `Attempt` in the action record, `alert.post_suspension_attempt`.
+- **Residual risk:** with the agent active, a replay within the token validity executes permitted operations. The hourly limit and idempotency reduce the effect. Microsoft warns that gateway configurations can change and tokens can be replayed [M38].
+- **Owner:** to be assigned (suggested role: platform engineer responsible for the PolicyExecutor).
 
 ### T-04 Confused deputy
 
-- **Fronteira:** F2 e F3. O executor é o deputy: tem uma credencial de dados que o agente não tem.
-- **Pré-condição:** um agente consegue que o executor use a sua credencial para um recurso ou agente que não lhe pertence.
-- **Mitigação:** a identidade do chamador vem do token validado (`tid` e `oid`), nunca de `agent_id` no corpo (`CallerIdentity`). O agente resolve-se por tenant e identidade (`FindAgentByIdentityAsync`). A capacidade só vale para o seu tenant, agente, acção e recurso canónico. O executor usa o `ExecutorObjectId` do próprio agente, sem executor universal com direitos de tenant inteiro. Em SharePoint, o grant Selected existe no recurso e a identidade que atribui permissões é separada do executor [M22] [M23].
-- **Teste:** BT-02 e BT-07 (retirar uma capacidade não altera outras), locais. TC-04 a criar (local): o agente A pede o recurso de um agente B com a sua própria capacidade e recebe `capability_missing`.
-- **Evidência:** `action.denied` com `capability_missing` ou `agent_unknown`. `executorIdentity` registado em cada `action.admitted`.
-- **Risco residual:** a segurança depende de o registo associar correctamente identidade e `ExecutorObjectId`. Um erro humano nesse registo cria um deputy confuso. A reconciliação (T-12) detecta grants inesperados, não registos errados. Os claims `tid` e `oid` do token de um agente Entra são pressupostos: POR VALIDAR NO TENANT.
-- **Owner:** por atribuir (papel sugerido: arquitecto de segurança).
+- **Boundary:** F2 and F3. The executor is the deputy: it has a data credential that the agent does not have.
+- **Precondition:** an agent manages to make the executor use its credential for a resource or agent that does not belong to it.
+- **Mitigation:** the caller identity comes from the validated token (`tid` and `oid`), never from `agent_id` in the body (`CallerIdentity`). The agent is resolved by tenant and identity (`FindAgentByIdentityAsync`). The capability is only valid for its tenant, agent, action and canonical resource. The executor uses the agent's own `ExecutorObjectId`, with no universal executor holding whole-tenant rights. In SharePoint, the Selected grant exists on the resource and the identity that assigns permissions is separate from the executor [M22] [M23].
+- **Test:** BT-02 and BT-07 (removing one capability does not change others), local. TC-04 to be created (local): agent A requests the resource of an agent B with its own capability and receives `capability_missing`.
+- **Evidence:** `action.denied` with `capability_missing` or `agent_unknown`. `executorIdentity` recorded in every `action.admitted`.
+- **Residual risk:** security depends on the registry associating identity and `ExecutorObjectId` correctly. A human error in that registry creates a confused deputy. Reconciliation (T-12) detects unexpected grants, not wrong registrations. The `tid` and `oid` claims of an Entra agent token are assumptions: TO BE VALIDATED IN THE TENANT.
+- **Owner:** to be assigned (suggested role: security architect).
 
 ### T-05 SSRF
 
-- **Fronteira:** F2 e F3.
-- **Pré-condição:** o agente consegue influenciar para onde o executor faz pedidos HTTP (URL, anfitrião, caminho, `@odata.nextLink`, `Location`).
-- **Mitigação:** não existe proxy HTTP genérico. O chamador não fornece URL: só `siteId`, `driveId` e `itemId`, com formato fechado, e o executor constrói o pedido Graph a partir deles. Não se normaliza: o `ResourceCanonicalizer` rejeita o que não é canónico. Redireccionamentos e ligações de paginação são seguidos só pelo executor e só depois de validados contra uma lista de anfitriões (a implementar na fase C). O executor corre sem rota para endereços internos que não precise.
-- **Teste:** TC-05 em parte. Parte local: argumentos que pareçam URL são recusados (`Generic_proxy_batch_and_arbitrary_urls_are_impossible`). Endereço IP e anfitrião não têm teste dedicado. Parte fase C: o executor não consegue ligar a destinos fora da lista (teste de saída de rede). BT-05 (gateway e backend não contornáveis) só na fase C.
-- **Evidência:** `action.denied` com `resource_not_canonical`; registo de saída de rede do runtime do executor na fase C.
-- **Risco residual:** os anfitriões de destino do 302 em SharePoint Online são NÃO VERIFICADOS. O exemplo da página usa um anfitrião de OneDrive pessoal [M25]. `@odata.nextLink` é um URL absoluto na paginação [M27], e tem de ser validado antes de seguir (inferência). Se o executor seguir links sem validação, a ameaça reabre.
-- **Owner:** por atribuir (papel sugerido: engenheiro de plataforma, com revisão de segurança).
+- **Boundary:** F2 and F3.
+- **Precondition:** the agent can influence where the executor makes HTTP requests (URL, host, path, `@odata.nextLink`, `Location`).
+- **Mitigation:** there is no generic HTTP proxy. The caller does not supply a URL: only `siteId`, `driveId` and `itemId`, with a closed format, and the executor builds the Graph request from them. Nothing is normalised: the `ResourceCanonicalizer` rejects what is not canonical. Redirects and pagination links are followed only by the executor and only after being validated against a host list (to be implemented in phase C). The executor runs with no route to internal addresses that it does not need.
+- **Test:** TC-05 in part. Local part: arguments that look like a URL are refused (`Generic_proxy_batch_and_arbitrary_urls_are_impossible`). IP address and host have no dedicated test. Phase C part: the executor cannot connect to destinations outside the list (network egress test). BT-05 (gateway and backend not bypassable) only in phase C.
+- **Evidence:** `action.denied` with `resource_not_canonical`; executor runtime network egress log in phase C.
+- **Residual risk:** the destination hosts of the 302 in SharePoint Online are NOT VERIFIED. The page example uses a personal OneDrive host [M25]. `@odata.nextLink` is an absolute URL in pagination [M27], and must be validated before being followed (inference). If the executor follows links without validation, the threat reopens.
+- **Owner:** to be assigned (suggested role: platform engineer, with security review).
 
-### T-06 Batch e redirect bypass
+### T-06 Batch and redirect bypass
 
-- **Fronteira:** F2 e F3.
-- **Pré-condição:** o agente usa um pedido composto, um parâmetro de consulta ou um redireccionamento para chegar a operações que a lista não permite.
-- **Mitigação:** o `OperationCatalog` não tem operação batch. O executor monta os pedidos Graph e nunca reencaminha o corpo do agente. O APIM nega `/$batch` em `v1.0` e em `beta` por omissão (política a escrever na fase C). O batch tem limite de 20 pedidos internos, o método externo é sempre POST e um `200` externo não mostra o resultado dos internos [M29]. Isto contorna uma lista de caminhos e métodos feita no gateway (inferência). Parâmetros como `$expand` e `$select` não são aceites, porque `driveItem` permite `$expand` para trazer filhos [M26] e os metadados trazem `@microsoft.graph.downloadUrl` [M28]. Redireccionamento: o executor segue o 302 de `/content` [M25], devolve só os bytes, nunca devolve `Location` nem regista o URL.
-- **Teste:** TC-06 em parte (local): `$batch` e argumentos em excesso são recusados (`Generic_proxy_batch_and_arbitrary_urls_are_impossible`) e a resposta não contém `downloadUrl` (`BT06_`). `$expand`, `$select` e `Location` não têm teste dedicado. BT-05 (fase C): chamada directa ao executor e batch pelo gateway falham.
-- **Evidência:** `action.denied` com `operation_not_allowlisted` ou `arguments_invalid`. Logs do executor sem URL pré-autenticado.
-- **Risco residual:** o URL pré-autenticado já emitido não é invalidado de imediato quando se remove a permissão ("might not immediately invalidate the URL") [M28]. A validade tem duas fontes em desacordo: "might expire within minutes" [M25] contra "1 hour" [M28]. Usar 1 hora como pior caso. Quem tiver o URL descarrega sem token. O limite de tamanho do corpo do batch é NÃO VERIFICADO [M29].
-- **Owner:** por atribuir (papel sugerido: engenheiro de plataforma, com o responsável do APIM).
+- **Boundary:** F2 and F3.
+- **Precondition:** the agent uses a composite request, a query parameter or a redirect to reach operations that the list does not allow.
+- **Mitigation:** the `OperationCatalog` has no batch operation. The executor assembles the Graph requests and never forwards the agent's body. APIM denies `/$batch` in `v1.0` and in `beta` by default (policy to be written in phase C). The batch has a limit of 20 inner requests, the outer method is always POST and an outer `200` does not show the result of the inner ones [M29]. This bypasses a list of paths and methods built at the gateway (inference). Parameters such as `$expand` and `$select` are not accepted, because `driveItem` allows `$expand` to bring children [M26] and the metadata carries `@microsoft.graph.downloadUrl` [M28]. Redirect: the executor follows the 302 of `/content` [M25], returns only the bytes, and never returns `Location` nor logs the URL.
+- **Test:** TC-06 in part (local): `$batch` and extra arguments are refused (`Generic_proxy_batch_and_arbitrary_urls_are_impossible`) and the response does not contain `downloadUrl` (`BT06_`). `$expand`, `$select` and `Location` have no dedicated test. BT-05 (phase C): a direct call to the executor and a batch through the gateway fail.
+- **Evidence:** `action.denied` with `operation_not_allowlisted` or `arguments_invalid`. Executor logs without pre-authenticated URL.
+- **Residual risk:** a pre-authenticated URL already issued is not invalidated immediately when the permission is removed ("might not immediately invalidate the URL") [M28]. The validity has two sources in disagreement: "might expire within minutes" [M25] against "1 hour" [M28]. Use 1 hour as the worst case. Whoever holds the URL downloads without a token. The size limit of the batch body is NOT VERIFIED [M29].
+- **Owner:** to be assigned (suggested role: platform engineer, with the APIM owner).
 
-### T-07 Recursos canónicos manipulados
+### T-07 Manipulated canonical resources
 
-- **Fronteira:** F1 e F2.
-- **Pré-condição:** o chamador envia o mesmo recurso com outra grafia (maiúsculas, codificação percentual, espaços, barra final, Unicode), um caminho em vez de um identificador, ou identificadores de sites diferentes combinados.
-- **Mitigação:** o `ResourceCanonicalizer` só aceita recursos já canónicos e não normaliza. Uma entrada que precise de corte, mudança de caixa ou descodificação é rejeitada, porque duas grafias do mesmo recurso são um erro de autorização. As expressões regulares são fechadas e ancoradas. A comparação entre `Capability.Resource` e o recurso canónico resolvido é ordinal e exacta. O endereçamento é só por identificadores, nunca por caminho ou URL. O grant Selected no recurso é segunda barreira: sem atribuição explícita "an application consented ... would initially have no access" [M22].
-- **Teste:** BT-01 (recurso autorizado funciona, não autorizado falha). TC-07 em parte (local): `Non_canonical_resources_are_rejected_not_normalised` cobre caixa, espaços, `%2F`, `..`, URL, recurso incompleto e mudança de linha. Homóglifos e barra final não estão na tabela.
-- **Evidência:** `action.denied` com `resource_not_canonical`. O digest SHA-256 dos argumentos permite provar quais argumentos foram pedidos sem os guardar.
-- **Risco residual:** o formato dos identificadores de site, drive e item é pressuposto do desenho (site: `anfitrião,GUID,GUID` em minúsculas; drive e item: texto opaco com `A-Za-z0-9!_-`). A documentação lida não o fixa. POR VALIDAR NO TENANT. Se o formato real diferir, a falha esperada é recusar tudo (falha fechada), que bloqueia o uso mas não o abre.
-- **Owner:** por atribuir (papel sugerido: engenheiro de plataforma).
+- **Boundary:** F1 and F2.
+- **Precondition:** the caller sends the same resource with another spelling (upper case, percent encoding, spaces, trailing slash, Unicode), a path instead of an identifier, or identifiers from different sites combined.
+- **Mitigation:** the `ResourceCanonicalizer` only accepts resources that are already canonical and does not normalise. An input that needs trimming, case change or decoding is rejected, because two spellings of the same resource are an authorisation error. The regular expressions are closed and anchored. The comparison between `Capability.Resource` and the resolved canonical resource is ordinal and exact. Addressing is by identifiers only, never by path or URL. The Selected grant on the resource is a second barrier: without an explicit assignment "an application consented ... would initially have no access" [M22].
+- **Test:** BT-01 (authorised resource works, unauthorised fails). TC-07 in part (local): `Non_canonical_resources_are_rejected_not_normalised` covers case, spaces, `%2F`, `..`, URL, incomplete resource and line break. Homoglyphs and trailing slash are not in the table.
+- **Evidence:** `action.denied` with `resource_not_canonical`. The SHA-256 digest of the arguments makes it possible to prove which arguments were requested without storing them.
+- **Residual risk:** the format of the site, drive and item identifiers is an assumption of the design (site: `host,GUID,GUID` in lower case; drive and item: opaque text with `A-Za-z0-9!_-`). The documentation read does not fix it. TO BE VALIDATED IN THE TENANT. If the real format differs, the expected failure is to refuse everything (fail-closed), which blocks use but does not open it.
+- **Owner:** to be assigned (suggested role: platform engineer).
 
-### T-08 Escalada entre tenants
+### T-08 Cross-tenant escalation
 
-- **Fronteira:** F1, F2 e F5.
-- **Pré-condição:** um token ou identificador de outro tenant é aceite, ou uma consulta devolve dados de outro tenant.
-- **Mitigação:** o `tid` do token validado tem de coincidir com o tenant do agente. Todas as consultas de `IWalletTx` levam `tenantId`: um UUID não é autorização. A única consulta que cruza tenants é `ListPendingOutboxAsync`, reservada ao worker. Agent identities são single-tenant e só recebem tokens no tenant onde foram criadas, enquanto os blueprints podem ser multitenant [M14]. O âmbito de qualquer acção sobre blueprint tem de ser explícito (ver T-10).
-- **Teste:** BT-02 (chamador e tenant falsificados falham), local. TC-08 (local): `Tenants_are_isolated_for_operators_and_for_callers` e `Operator_of_another_tenant_cannot_see_or_touch_the_agent`. Um chamador com `(tid, oid)` sem agente dá `agent_unknown`, e um operador de outro tenant recebe `NotFoundException`, o mesmo que um agente inexistente.
-- **Evidência:** `action.denied` com `agent_unknown`.
-- **Risco residual:** o piloto tem um tenant. O isolamento multitenant nunca é exercido em ambiente real. A consulta cruzada da outbox é uma excepção deliberada que depende da integridade do worker. A configuração de `tenant-id` no APIM é POR VALIDAR NO TENANT.
-- **Owner:** por atribuir (papel sugerido: arquitecto de segurança).
+- **Boundary:** F1, F2 and F5.
+- **Precondition:** a token or identifier from another tenant is accepted, or a query returns data from another tenant.
+- **Mitigation:** the `tid` of the validated token must match the agent's tenant. All `IWalletTx` queries carry `tenantId`: a UUID is not authorisation. The only query that crosses tenants is `ListPendingOutboxAsync`, reserved for the worker. Agent identities are single-tenant and only receive tokens in the tenant where they were created, while blueprints can be multitenant [M14]. The scope of any action on a blueprint must be explicit (see T-10).
+- **Test:** BT-02 (forged caller and tenant fail), local. TC-08 (local): `Tenants_are_isolated_for_operators_and_for_callers` and `Operator_of_another_tenant_cannot_see_or_touch_the_agent`. A caller with `(tid, oid)` and no agent gives `agent_unknown`, and an operator from another tenant receives `NotFoundException`, the same as for a non-existent agent.
+- **Evidence:** `action.denied` with `agent_unknown`.
+- **Residual risk:** the pilot has one tenant. Multitenant isolation is never exercised in a real environment. The cross-tenant outbox query is a deliberate exception that depends on the integrity of the worker. The `tenant-id` configuration in APIM is TO BE VALIDATED IN THE TENANT.
+- **Owner:** to be assigned (suggested role: security architect).
 
-### T-09 Operador comprometido
+### T-09 Compromised operator
 
-- **Fronteira:** F4 e F8.
-- **Pré-condição:** uma conta de operador ou de administrador é controlada por um atacante.
-- **Mitigação:** quatro papéis separados (Reader, IncidentOperator, PolicyAdmin, Auditor). Reactivar exige pedido de um PolicyAdmin e aprovação de OUTRO PolicyAdmin, com grants externos reverificados, nova `revocation_epoch` e nova `policy_version`. Cada acção de operador regista o iniciador humano. Suspender é rápido e exige só IncidentOperator, o que é falha segura: um operador comprometido pode causar indisponibilidade, não acesso. Autenticação forte e acesso privilegiado temporário "quando suportado e licenciado" (secção 13 da especificação).
-- **Teste:** BT-19 (operador sem papel não suspende, reactiva nem concede capacidades), local. TC-09 (local): `Reactivation_needs_second_person_revalidated_grants_and_kills_old_capabilities` e `Activation_needs_a_second_person`.
-- **Evidência:** `agent.reactivation_requested` e `agent.reactivated` com iniciadores humanos distintos, `agent.suspended` com iniciador.
-- **Risco residual:** dois PolicyAdmin em conluio, ou comprometidos, reactivam. Um administrador de SQL ou de Azure fora da aplicação não é travado por ela. A ledger só dá evidência, não prevenção: "an attacker or system administrator who has control of the machine can bypass all system checks" [M39]. O acesso privilegiado temporário e a autenticação forte dependem de licenças por confirmar.
-- **Owner:** por atribuir (papel sugerido: responsável de segurança da informação).
+- **Boundary:** F4 and F8.
+- **Precondition:** an operator or administrator account is controlled by an attacker.
+- **Mitigation:** four separate roles (Reader, IncidentOperator, PolicyAdmin, Auditor). Reactivation requires a request from one PolicyAdmin and approval from ANOTHER PolicyAdmin, with external grants reverified, a new `revocation_epoch` and a new `policy_version`. Every operator action records the human initiator. Suspending is fast and requires only IncidentOperator, which is a safe failure: a compromised operator can cause unavailability, not access. Strong authentication and temporary privileged access "when supported and licensed" (section 13 of the specification).
+- **Test:** BT-19 (operator without a role cannot suspend, reactivate or grant capabilities), local. TC-09 (local): `Reactivation_needs_second_person_revalidated_grants_and_kills_old_capabilities` and `Activation_needs_a_second_person`.
+- **Evidence:** `agent.reactivation_requested` and `agent.reactivated` with distinct human initiators, `agent.suspended` with initiator.
+- **Residual risk:** two PolicyAdmins in collusion, or compromised, reactivate. A SQL or Azure administrator outside the application is not stopped by it. The ledger only gives evidence, not prevention: "an attacker or system administrator who has control of the machine can bypass all system checks" [M39]. Temporary privileged access and strong authentication depend on licences to be confirmed.
+- **Owner:** to be assigned (suggested role: information security lead).
 
-### T-10 Identidade partilhada
+### T-10 Shared identity
 
-- **Fronteira:** F3 e F6.
-- **Pré-condição:** vários agentes partilham o mesmo blueprint, a mesma managed identity user-assigned ou o mesmo executor, e a suspensão de um afecta ou deixa passar outro.
-- **Mitigação:** cada agente tem o seu `ExecutorObjectId`. Grants no próprio agente contam como caminho directo e baixam a cobertura para `DirectAccessPossible`. A desactivação por omissão é do agente individual. Desactivar um blueprint exige âmbito visível, impacto e aprovação distintos. Não se reutiliza a mesma managed identity entre runtimes com âmbitos incompatíveis.
-- **Teste:** BT-13 (desactivar um agente não desactiva irmãos do blueprint), só em simulação. BT-06 só nas fases C e D. TC-10 NÃO implementado: o código só recusa um executor igual à identidade do agente (`Agent_without_owner_or_with_shared_executor_identity_cannot_be_registered`). Dois agentes diferentes com o mesmo `ExecutorObjectId` não são recusados.
-- **Evidência:** `coverage.changed`, `alert.direct_access_discovered`, `containment.step` por agente.
-- **Risco residual:** as credenciais vivem no blueprint e são partilhadas por todas as identidades filhas: "Treat each blueprint as a credential boundary" [M14]. Desactivar o blueprint bloqueia as identidades existentes e impede novas [M06]. O efeito real da desactivação de uma agent identity sobre irmãos, e sobre o agent user associado, só se valida no tenant na fase D. O BT-13 local prova só que o adaptador actua num objecto. A cascata para o agent user é NÃO VERIFICADA [M21].
-- **Owner:** por atribuir (papel sugerido: arquitecto de identidade).
+- **Boundary:** F3 and F6.
+- **Precondition:** several agents share the same blueprint, the same user-assigned managed identity or the same executor, and the suspension of one affects another or lets another through.
+- **Mitigation:** each agent has its own `ExecutorObjectId`. Grants on the agent itself count as a direct path and lower coverage to `DirectAccessPossible`. Disabling by default applies to the individual agent. Disabling a blueprint requires distinct visible scope, impact and approval. The same managed identity is not reused across runtimes with incompatible scopes.
+- **Test:** BT-13 (disabling one agent does not disable siblings of the blueprint), only in simulation. BT-06 only in phases C and D. TC-10 NOT implemented: the code only refuses an executor equal to the agent's identity (`Agent_without_owner_or_with_shared_executor_identity_cannot_be_registered`). Two different agents with the same `ExecutorObjectId` are not refused.
+- **Evidence:** `coverage.changed`, `alert.direct_access_discovered`, `containment.step` per agent.
+- **Residual risk:** the credentials live in the blueprint and are shared by all child identities: "Treat each blueprint as a credential boundary" [M14]. Disabling the blueprint blocks the existing identities and prevents new ones [M06]. The real effect of disabling an agent identity on siblings, and on the associated agent user, is only validated in the tenant in phase D. The local BT-13 only proves that the adapter acts on one object. The cascade to the agent user is NOT VERIFIED [M21].
+- **Owner:** to be assigned (suggested role: identity architect).
 
-### T-11 Grant cumulativo
+### T-11 Cumulative grant
 
-- **Fronteira:** F3 e F6.
-- **Pré-condição:** o agente tem, por outra via, uma permissão mais ampla que a pretendida, e as autoridades somam-se.
-- **Mitigação:** o acesso efectivo permitido pelo produto é a intersecção das restrições do produto com a autoridade externa. A `ReconciliationService` compara grants observados (`IExternalGrantSource`) com os registados, e um grant amplo (por exemplo `Sites.Read.All` ou `Files.Read.All`) é drift perigoso e suspende o agente. Em SharePoint, a revogação de um scope de nível superior não remove o acesso dado por um scope inferior ("the application maintains access to the list it was given specific access to") [M22], por isso a reconciliação lista todos os níveis. Em Exchange (fase posterior, fora do MVP), as permissões Entra e as do RBAC for Applications são uma união: "the union of an unscoped `Mail.Read` grant from Microsoft Entra and a resource-scoped `Mail.Read` grant in Application RBAC results in no effective resource scoping" [M32]. O ledger tem de verificar as duas autoridades.
-- **Teste:** BT-15 (drift de grants detectado e tratado), local. TC-11 a criar (fase D, só quando o correio entrar): permissão `Mail.Read` consentida no Entra anula o âmbito do RBAC, e `Test-ServicePrincipalAuthorization` não o mostra porque exclui permissões do Entra [M32].
-- **Evidência:** `alert.broad_grant`, `alert.drift_detected`, `grant.recorded`, `grant.absent`.
-- **Risco residual:** grants concedidos entre ciclos de reconciliação funcionam até serem detectados. O intervalo ainda não está definido. Listar e obter permissões num site por Graph é NÃO VERIFICADO nas páginas lidas, e a reconciliação precisa disso. Em Exchange, uma alteração de papel leva 30 minutos a 2 horas a propagar, e o cmdlet de teste ignora essa cache [M32].
-- **Owner:** por atribuir (papel sugerido: administrador do tenant, com o arquitecto de segurança).
+- **Boundary:** F3 and F6.
+- **Precondition:** the agent has, through another route, a broader permission than intended, and the authorities add up.
+- **Mitigation:** the effective access permitted by the product is the intersection of the product's restrictions with the external authority. The `ReconciliationService` compares observed grants (`IExternalGrantSource`) with the recorded ones, and a broad grant (for example `Sites.Read.All` or `Files.Read.All`) is dangerous drift and suspends the agent. In SharePoint, revoking a higher-level scope does not remove the access given by a lower scope ("the application maintains access to the list it was given specific access to") [M22], so reconciliation lists all levels. In Exchange (later phase, outside the MVP), the Entra permissions and those of RBAC for Applications are a union: "the union of an unscoped `Mail.Read` grant from Microsoft Entra and a resource-scoped `Mail.Read` grant in Application RBAC results in no effective resource scoping" [M32]. The ledger must verify both authorities.
+- **Test:** BT-15 (grant drift detected and handled), local. TC-11 to be created (phase D, only when mail comes in): a `Mail.Read` permission consented in Entra cancels the RBAC scope, and `Test-ServicePrincipalAuthorization` does not show it because it excludes Entra permissions [M32].
+- **Evidence:** `alert.broad_grant`, `alert.drift_detected`, `grant.recorded`, `grant.absent`.
+- **Residual risk:** grants given between reconciliation cycles work until they are detected. The interval is not yet defined. Listing and getting permissions on a site through Graph is NOT VERIFIED in the pages read, and reconciliation needs it. In Exchange, a role change takes 30 minutes to 2 hours to propagate, and the test cmdlet ignores that cache [M32].
+- **Owner:** to be assigned (suggested role: tenant administrator, with the security architect).
 
 ### T-12 Drift
 
-- **Fronteira:** F3 e F6.
-- **Pré-condição:** o estado real do Entra ou do recurso muda fora do produto (consentimento novo, grant novo, responsável removido), e os eventos perdem-se ou atrasam-se.
-- **Mitigação:** reconciliação periódica obrigatória, para além de eventos. Cada `ExternalGrant` guarda `LastVerifiedAt`, origem e `LastResult`. O estado do agente e a cobertura declaram a última verificação (`Coverage.LastVerifiedAt`). Drift perigoso suspende o agente ou impede nova activação. Alertas mínimos: acesso directo descoberto, drift, grant amplo e conta sem responsável.
-- **Teste:** BT-15 (drift de grants detectado e tratado), local.
-- **Evidência:** `alert.drift_detected`, `alert.broad_grant`, `alert.direct_access_discovered`, `grant.recorded`.
-- **Risco residual:** a reconciliação precisa de permissões de leitura no Entra e no recurso, e essa matriz é POR PREENCHER NO TENANT. Uma leitura incompleta esconde grants. O intervalo é uma decisão em aberto. Eventos do Entra não são autoridade. O Agent 365 e o centro de administração Microsoft 365 têm um segundo interruptor de bloqueio, e se o bloqueio lá altera o Entra é NÃO VERIFICADO [M14] [M64].
-- **Owner:** por atribuir (papel sugerido: engenheiro de plataforma, com o administrador Entra).
+- **Boundary:** F3 and F6.
+- **Precondition:** the real state of Entra or of the resource changes outside the product (new consent, new grant, owner removed), and the events are lost or delayed.
+- **Mitigation:** mandatory periodic reconciliation, in addition to events. Each `ExternalGrant` stores `LastVerifiedAt`, source and `LastResult`. The agent state and the coverage declare the last verification (`Coverage.LastVerifiedAt`). Dangerous drift suspends the agent or prevents a new activation. Minimum alerts: direct access discovered, drift, broad grant and account without an owner.
+- **Test:** BT-15 (grant drift detected and handled), local.
+- **Evidence:** `alert.drift_detected`, `alert.broad_grant`, `alert.direct_access_discovered`, `grant.recorded`.
+- **Residual risk:** reconciliation needs read permissions in Entra and on the resource, and that matrix is TO BE FILLED IN THE TENANT. An incomplete read hides grants. The interval is an open decision. Entra events are not authority. Agent 365 and the Microsoft 365 admin centre have a second block switch, and whether blocking there changes Entra is NOT VERIFIED [M14] [M64].
+- **Owner:** to be assigned (suggested role: platform engineer, with the Entra administrator).
 
-### T-13 Revogação concorrente
+### T-13 Concurrent revocation
 
-- **Fronteira:** F2, F5 e F3.
-- **Pré-condição:** uma suspensão chega enquanto uma acção já foi admitida ou está a caminho do Graph.
-- **Mitigação:** a admissão lê o agente pelo caminho com bloqueio (`GetAgentAsync` segura o registo até ao fim da transacção), por isso admissão e suspensão são serializadas. A transacção 2 revalida estado, epoch e capacidade e só então marca `Executing`. A suspensão é uma transacção única: muda o estado, incrementa `revocation_epoch`, cria a `ContainmentOperation` em `LocalBlocked`, regista `InFlightActionIds`, escreve outbox e auditoria. `Agent.Version` dá controlo optimista de concorrência. Acções já em `Executing` não se podem parar e são reportadas como em curso, separadamente.
-- **Teste:** BT-04 (corrida suspensão e execução documenta exactamente as acções em curso) e BT-03 (suspensão invalida capacidade anterior ainda válida), locais.
-- **Evidência:** `InFlightActionIds` na operação de contenção, `action.cancelled_at_revalidation`, `action.executing`, `agent.suspended`.
-- **Risco residual:** a revalidação não elimina a corrida com um pedido já enviado ao Graph. Não existe rollback universal. No MVP só há leitura, e os bytes podem já ter sido entregues quando a suspensão é persistida. O SLO de 5 segundos para recusar novas admissões é objectivo inicial, por medir na fase C.
-- **Owner:** por atribuir (papel sugerido: engenheiro de plataforma responsável pelo núcleo).
+- **Boundary:** F2, F5 and F3.
+- **Precondition:** a suspension arrives while an action has already been admitted or is on its way to Graph.
+- **Mitigation:** admission reads the agent through the locking path (`GetAgentAsync` holds the record until the end of the transaction), so admission and suspension are serialised. Transaction 2 revalidates state, epoch and capability and only then marks `Executing`. Suspension is a single transaction: it changes the state, increments `revocation_epoch`, creates the `ContainmentOperation` in `LocalBlocked`, records `InFlightActionIds`, and writes outbox and audit. `Agent.Version` gives optimistic concurrency control. Actions already in `Executing` cannot be stopped and are reported as in progress, separately.
+- **Test:** BT-04 (suspension and execution race documents exactly the in-flight actions) and BT-03 (suspension invalidates a previous capability that is still valid), local.
+- **Evidence:** `InFlightActionIds` in the containment operation, `action.cancelled_at_revalidation`, `action.executing`, `agent.suspended`.
+- **Residual risk:** revalidation does not eliminate the race with a request already sent to Graph. There is no universal rollback. In the MVP there is only reading, and the bytes may already have been delivered when the suspension is persisted. The 5-second SLO for refusing new admissions is an initial objective, to be measured in phase C.
+- **Owner:** to be assigned (suggested role: platform engineer responsible for the core).
 
-### T-14 Mensagens fora de ordem
+### T-14 Out-of-order messages
 
-- **Fronteira:** F5 e F6.
-- **Pré-condição:** uma mensagem da outbox chega duplicada, tarde ou depois de uma reactivação, por exemplo uma ordem de contenção antiga.
-- **Mitigação:** cada mensagem leva a `Epoch`. Epoch diferente da actual significa descartada como `superseded` (`containment.superseded`), nunca executada. O worker nunca reactiva um agente. Os consumidores revalidam antes de executar e depois de retentativas. Mensagens antigas não reactivam carteiras. A ordem não é garantida pelo transporte. FIFO exige sessões no Service Bus [M56], e a disponibilidade de sessões por escalão é NÃO VERIFICADA.
-- **Teste:** TC-14 (local): `Old_containment_message_never_acts_on_a_reactivated_agent_and_never_reactivates`: uma mensagem de epoch anterior, entregue depois da reactivação, é descartada e auditada, e não altera o estado. BT-03 e BT-10 são relacionados.
-- **Evidência:** `containment.superseded`, `containment.dead_lettered`.
-- **Risco residual:** passos de adaptadores de uma mesma epoch podem chegar fora de ordem, e dependem de serem idempotentes. A fila de dead-letter não se limpa sozinha ("there's no automatic cleanup of the DLQ") [M52], logo precisa de processo operacional.
-- **Owner:** por atribuir (papel sugerido: engenheiro de plataforma responsável do ContainmentWorker).
+- **Boundary:** F5 and F6.
+- **Precondition:** an outbox message arrives duplicated, late or after a reactivation, for example an old containment order.
+- **Mitigation:** each message carries the `Epoch`. An epoch different from the current one means discarded as `superseded` (`containment.superseded`), never executed. The worker never reactivates an agent. Consumers revalidate before executing and after retries. Old messages do not reactivate wallets. Order is not guaranteed by the transport. FIFO requires sessions in Service Bus [M56], and the availability of sessions per tier is NOT VERIFIED.
+- **Test:** TC-14 (local): `Old_containment_message_never_acts_on_a_reactivated_agent_and_never_reactivates`: a message from a previous epoch, delivered after the reactivation, is discarded and audited, and does not change the state. BT-03 and BT-10 are related.
+- **Evidence:** `containment.superseded`, `containment.dead_lettered`.
+- **Residual risk:** adapter steps of the same epoch can arrive out of order, and depend on being idempotent. The dead-letter queue does not clean itself ("there's no automatic cleanup of the DLQ") [M52], so it needs an operational process.
+- **Owner:** to be assigned (suggested role: platform engineer responsible for the ContainmentWorker).
 
-### T-15 Retry duplicado
+### T-15 Duplicate retry
 
-- **Fronteira:** F1, F5 e F6.
-- **Pré-condição:** o cliente repete `POST /actions`, o Service Bus reentrega uma mensagem, ou o worker repete um passo após throttling.
-- **Mitigação:** chave de idempotência obrigatória, por agente. Mesma chave e argumentos: resultado anterior, sem repetir efeito. Argumentos diferentes: `idempotency_conflict`. Acção ainda a decorrer: `in_progress`. Os adaptadores de contenção são idempotentes, com timeout, retentativas limitadas e backoff, e respeitam `Retry-After` [M30] [M31]. O Service Bus em modo peek-lock dá entrega pelo menos uma vez, e "if your scenario can't tolerate duplicate processing, add extra logic" [M50], por isso o consumidor é idempotente. A ledger não permite corrigir uma linha duplicada (inferência de [M42]).
-- **Teste:** BT-10 (repetição de mensagem não duplica efeito), local.
-- **Evidência:** `idempotent_replay`, `in_progress`, `Attempt`, `containment.step` com tentativas.
-- **Risco residual:** não existe exactly-once universal para efeitos Graph. A leitura é idempotente por natureza. As fases com escrita (rascunhos de correio) exigem registo de intenção, reconciliação e, quando necessário, confirmação humana. A detecção de duplicados do Service Bus só actua no envio, dentro da janela (10 minutos por omissão) [M51], e não cobre reentrega ao consumidor.
-- **Owner:** por atribuir (papel sugerido: engenheiro de plataforma).
+- **Boundary:** F1, F5 and F6.
+- **Precondition:** the client repeats `POST /actions`, Service Bus redelivers a message, or the worker repeats a step after throttling.
+- **Mitigation:** mandatory idempotency key, per agent. The same key and arguments: previous result, without repeating the effect. Different arguments: `idempotency_conflict`. Action still running: `in_progress`. Containment adapters are idempotent, with timeout, bounded retries and backoff, and respect `Retry-After` [M30] [M31]. Service Bus in peek-lock mode gives at-least-once delivery, and "if your scenario can't tolerate duplicate processing, add extra logic" [M50], so the consumer is idempotent. The ledger does not allow correcting a duplicated row (inference from [M42]).
+- **Test:** BT-10 (message repetition does not duplicate the effect), local.
+- **Evidence:** `idempotent_replay`, `in_progress`, `Attempt`, `containment.step` with attempts.
+- **Residual risk:** there is no universal exactly-once for Graph effects. Reading is idempotent by nature. The phases with writing (mail drafts) require intent recording, reconciliation and, when necessary, human confirmation. Service Bus duplicate detection only acts on send, within the window (10 minutes by default) [M51], and does not cover redelivery to the consumer.
+- **Owner:** to be assigned (suggested role: platform engineer).
 
-### T-16 Indisponibilidade de SQL
+### T-16 SQL unavailability
 
-- **Fronteira:** F5.
-- **Pré-condição:** o SQL não responde, ou não consegue persistir a intenção ou o resultado.
-- **Mitigação:** falha fechada. Uma `StoreUnavailableException` na admissão dá `denied` com `state_unavailable`. Não existe cache positiva. A intenção tem de ficar persistida antes de qualquer efeito externo. Se a revalidação não puder ler o estado, a acção fica `Admitted` sem efeito e a varredura (`SweepStaleActionsAsync`) fecha-a. Se o resultado não puder ser gravado, o executor não entrega os dados (`result_not_recorded`) e a acção fica para a varredura, que a marca `Unknown`. A indisponibilidade de telemetria secundária não pode causar perda silenciosa do registo primário.
-- **Teste:** BT-08 (SQL indisponível: negar novas acções protegidas), local. BT-17 (restauro e failover não reactivam um agente suspenso) só nas fases C e D.
-- **Evidência:** resposta `state_unavailable` do executor, registada na telemetria operacional (secundária: durante a indisponibilidade não há registo na ledger). Alerta de disponibilidade.
-- **Risco residual:** a disponibilidade do SQL passa a ser a disponibilidade do produto, por escolha. Um restauro pode repor um estado anterior em que o agente estava activo, por isso o restauro exige validar RPO e reconciliar antes de reabrir tráfego (BT-17). Os digests só cobrem dados replicados em secundários geográficos, por desenho da Microsoft [M41]. Uma acção cujo efeito ocorreu e cujo resultado não foi gravado fica `Unknown`.
-- **Owner:** por atribuir (papel sugerido: DBA ou engenheiro de plataforma de dados).
+- **Boundary:** F5.
+- **Precondition:** SQL does not respond, or cannot persist the intent or the result.
+- **Mitigation:** fail-closed. A `StoreUnavailableException` at admission gives `denied` with `state_unavailable`. There is no positive cache. The intent must be persisted before any external effect. If revalidation cannot read the state, the action stays `Admitted` with no effect and the sweep (`SweepStaleActionsAsync`) closes it. If the result cannot be written, the executor does not deliver the data (`result_not_recorded`) and the action is left for the sweep, which marks it `Unknown`. The unavailability of secondary telemetry must not cause silent loss of the primary record.
+- **Test:** BT-08 (SQL unavailable: deny new protected actions), local. BT-17 (restore and failover do not reactivate a suspended agent) only in phases C and D.
+- **Evidence:** `state_unavailable` response from the executor, recorded in operational telemetry (secondary: during the unavailability there is no ledger record). Availability alert.
+- **Residual risk:** the availability of SQL becomes the availability of the product, by choice. A restore can bring back an earlier state in which the agent was active, so a restore requires validating RPO and reconciling before reopening traffic (BT-17). Digests only cover data replicated to geo-secondaries, by Microsoft's design [M41]. An action whose effect occurred and whose result was not recorded stays `Unknown`.
+- **Owner:** to be assigned (suggested role: DBA or data platform engineer).
 
-### T-17 Indisponibilidade de APIM
+### T-17 APIM unavailability
 
-- **Fronteira:** F1 e F2.
-- **Pré-condição:** o APIM está em baixo ou mal configurado.
-- **Mitigação:** o APIM é o ponto de entrada, não a autoridade. O executor valida o token e lê o estado autoritativo por si [M38]. Com o APIM em baixo o agente não chega ao executor, porque o executor não tem exposição directa (ingresso interno, a definir no Bicep da fase C). Não existe caminho de contingência que desvie o gateway.
-- **Teste:** TC-17 a criar (fase C): derrubar o APIM faz os pedidos falharem, e uma chamada directa ao executor sem credencial do APIM é recusada. BT-05 (fase C): gateway e backend não podem ser contornados.
-- **Evidência:** alertas de disponibilidade do gateway, pedidos falhados no APIM, recusas no executor.
-- **Risco residual:** os mecanismos de rede aplicam-se ao troço APIM para executor [M55], não ao Graph (inferência). A disponibilidade por escalão do APIM é NÃO VERIFICADA. Quem edita políticas APIM pode autenticar-se como a managed identity do serviço e extrair o token, e o APIM "does not validate which backend the token is sent to" [M37]. Por isso a credencial Graph fica no executor e não no APIM (inferência).
-- **Owner:** por atribuir (papel sugerido: responsável da plataforma de integração, APIM).
+- **Boundary:** F1 and F2.
+- **Precondition:** APIM is down or misconfigured.
+- **Mitigation:** APIM is the entry point, not the authority. The executor validates the token and reads the authoritative state on its own [M38]. With APIM down the agent does not reach the executor, because the executor has no direct exposure (internal ingress, to be defined in the phase C Bicep). There is no contingency path that bypasses the gateway.
+- **Test:** TC-17 to be created (phase C): taking APIM down makes requests fail, and a direct call to the executor without the APIM credential is refused. BT-05 (phase C): gateway and backend cannot be bypassed.
+- **Evidence:** gateway availability alerts, failed requests in APIM, refusals at the executor.
+- **Residual risk:** the network mechanisms apply to the APIM to executor leg [M55], not to Graph (inference). APIM availability per tier is NOT VERIFIED. Whoever edits APIM policies can authenticate as the service's managed identity and extract the token, and APIM "does not validate which backend the token is sent to" [M37]. For that reason the Graph credential stays in the executor and not in APIM (inference).
+- **Owner:** to be assigned (suggested role: integration platform lead, APIM).
 
-### T-18 Indisponibilidade de Entra
+### T-18 Entra unavailability
 
-- **Fronteira:** F1, F4 e F6.
-- **Pré-condição:** o Entra não emite tokens, não valida, ou não aceita as chamadas dos adaptadores de contenção.
-- **Mitigação:** o bloqueio local (`LocalBlocked`) não depende do Entra e continua eficaz. Os adaptadores têm timeout, retentativas limitadas, backoff e dead-letter. O resultado fica visível por passo (`Failed` ou `Unknown`) e o estado global não passa a `VerifiedScoped`: qualquer `Unknown` dá `Unknown`, mistura dá `Partial`, tudo falhado dá `Failed`. A validação de assinatura usa cache de chaves: na política `validate-jwt` as chaves são obtidas a cada hora e guardadas, com leitura no máximo de 5 em 5 minutos [M36]. Para `validate-azure-ad-token` esse comportamento é NÃO VERIFICADO. O acesso de operadores em falha do Entra depende do break-glass independente da aplicação.
-- **Teste:** TC-18 (local, com falhas injectadas na simulação): `Repeated_failure_is_bounded_and_reported_as_failed` e `Suspended_never_becomes_verified_without_external_steps`. Timeout, throttling e erro nos adaptadores produzem `Unknown`, `Partial` ou `Failed`, nunca `VerifiedScoped`. BT-11 e BT-12 são relacionados. BT-20 (break-glass com a aplicação indisponível) só na fase D.
-- **Evidência:** `containment.step`, `containment.completed` com o estado global, `containment.dead_lettered`, campo de incertezas da `ContainmentOperation`.
-- **Risco residual:** sem Entra a contenção externa não avança. O bloqueio local só cobre o caminho pelo gateway. Um agente com grant directo mantém o acesso. Os tokens já emitidos mantêm-se (ver T-02).
-- **Owner:** por atribuir (papel sugerido: arquitecto de identidade, com o responsável de continuidade).
+- **Boundary:** F1, F4 and F6.
+- **Precondition:** Entra does not issue tokens, does not validate, or does not accept the calls of the containment adapters.
+- **Mitigation:** the local block (`LocalBlocked`) does not depend on Entra and remains effective. The adapters have timeout, bounded retries, backoff and dead-letter. The result is visible per step (`Failed` or `Unknown`) and the global state does not become `VerifiedScoped`: any `Unknown` gives `Unknown`, a mix gives `Partial`, all failed gives `Failed`. Signature validation uses a key cache: in the `validate-jwt` policy the keys are fetched every hour and stored, with a read at most every 5 minutes [M36]. For `validate-azure-ad-token` that behaviour is NOT VERIFIED. Operator access during an Entra failure depends on break-glass that is independent of the application.
+- **Test:** TC-18 (local, with failures injected in the simulation): `Repeated_failure_is_bounded_and_reported_as_failed` and `Suspended_never_becomes_verified_without_external_steps`. Timeout, throttling and error in the adapters produce `Unknown`, `Partial` or `Failed`, never `VerifiedScoped`. BT-11 and BT-12 are related. BT-20 (break-glass with the application unavailable) only in phase D.
+- **Evidence:** `containment.step`, `containment.completed` with the global state, `containment.dead_lettered`, uncertainties field of the `ContainmentOperation`.
+- **Residual risk:** without Entra, external containment does not advance. The local block only covers the path through the gateway. An agent with a direct grant keeps access. Tokens already issued remain (see T-02).
+- **Owner:** to be assigned (suggested role: identity architect, with the continuity lead).
 
-### T-19 Falha de digests
+### T-19 Digest failure
 
-- **Fronteira:** F7.
-- **Pré-condição:** os digests deixam de ser exportados, vão para um destino adulterável, ou a verificação não corre.
-- **Mitigação:** gestão nativa de digests do SQL Ledger para armazenamento independente. Os digests são gerados num intervalo de 30 segundos, e só se houver transacções [M41]. Baseline: Blob com política de imutabilidade validada e `locked` depois de aprovada a retenção [M46]. Privilégios SQL, destino dos digests e verificação separados. Monitorização da idade do último digest, falhas de exportação, resultado da verificação e cobertura temporal. A Microsoft recomenda alertas sobre uploads falhados e sobre a queda de uploads com sucesso [M45]. Verificação após restauro e failover.
-- **Teste:** BT-16 (alteração de evidência detectada nos cenários suportados pela ledger). TC-19 a criar (fase C): revogar a permissão de escrita no armazenamento dispara o alerta, e apontar o upload para um destino sem política `locked` é detectado pela verificação de configuração.
-- **Evidência:** alertas de digest, código de retorno da verificação (`0` sucesso, `1` falha) e `last_verified_block_id` [M40].
-- **Risco residual:** a ledger dá evidência de adulteração, não prevenção, e não impede uma entrada inicial falsa nem garante disponibilidade nem recupera dados [M39]. "The verification process and the integrity of the database depend on the integrity of the input digests" [M40]. Com autenticação Entra-only, Elastic Jobs não é suportado, por isso o agendamento da verificação usa Azure Automation ou um job próprio [M40] [M53]. LRS não é suportado para digests automáticos [M42]. Os nomes das métricas de upload são NÃO VERIFICADOS. Azure Confidential Ledger como destino tem garantia de integridade mais forte contra administradores privilegiados [M41], com limites próprios [M49], e é opção por decidir.
-- **Owner:** por atribuir (papel sugerido: DBA com o responsável de segurança, e o auditor para a verificação).
+- **Boundary:** F7.
+- **Precondition:** digests stop being exported, go to a destination that can be tampered with, or the verification does not run.
+- **Mitigation:** native SQL Ledger digest management to independent storage. Digests are generated at an interval of 30 seconds, and only if there are transactions [M41]. Baseline: Blob with a validated immutability policy and `locked` once the retention is approved [M46]. SQL privileges, digest destination and verification kept separate. Monitoring of the age of the last digest, export failures, verification result and time coverage. Microsoft recommends alerts on failed uploads and on a drop in successful uploads [M45]. Verification after restore and failover.
+- **Test:** BT-16 (evidence tampering detected in the scenarios supported by the ledger). TC-19 to be created (phase C): revoking the write permission on the storage triggers the alert, and pointing the upload at a destination without a `locked` policy is detected by the configuration check.
+- **Evidence:** digest alerts, verification return code (`0` success, `1` failure) and `last_verified_block_id` [M40].
+- **Residual risk:** the ledger gives evidence of tampering, not prevention, and does not prevent a false initial entry, nor guarantee availability, nor recover data [M39]. "The verification process and the integrity of the database depend on the integrity of the input digests" [M40]. With Entra-only authentication, Elastic Jobs is not supported, so the verification scheduling uses Azure Automation or a dedicated job [M40] [M53]. LRS is not supported for automatic digests [M42]. The names of the upload metrics are NOT VERIFIED. Azure Confidential Ledger as a destination has a stronger integrity guarantee against privileged administrators [M41], with its own limits [M49], and is an option still to be decided.
+- **Owner:** to be assigned (suggested role: DBA with the security lead, and the auditor for the verification).
 
-### T-20 Exfiltração
+### T-20 Exfiltration
 
-- **Fronteira:** F1, F3 e F7.
-- **Pré-condição:** dados acessíveis ao agente saem por um caminho não previsto: o próprio agente, um URL pré-autenticado, logs e ledger, ou acesso directo ao recurso.
-- **Mitigação:** mínimo privilégio por recurso (Selected, papel `read`) e duas operações de leitura. Limite por hora. A ledger guarda um digest SHA-256 dos argumentos e nunca tokens, conteúdo, prompts nem dados pessoais desnecessários. O executor devolve bytes e não o `Location`. No perfil de controlo forte removem-se os acessos directos do agente ao recurso, e o egress restrito é defesa adicional, não substituto. Defender, Sentinel e Purview são para avaliar e não se presume cobertura.
-- **Teste:** BT-18 (sem segredos ou conteúdo sensível desnecessário na ledger e nos logs), local. BT-06 só nas fases C e D. TC-20 a criar (fase C): o runtime do agente não tem rota para Graph nem para o armazenamento.
-- **Evidência:** `action.completed` com digest e referência mínima, ausência de conteúdo nos registos, `alert.direct_access_discovered`.
-- **Risco residual:** o que o agente pode ler pode ser enviado por ele para fora. Eliminar dados já exfiltrados está fora do MVP. O URL pré-autenticado é uma credencial ao portador, sem exigir token, com validade documentada entre "minutes" [M25] e "1 hour" [M28], e a remoção de permissões pode não o invalidar de imediato [M28]. A cobertura de Defender e Purview é POR VALIDAR NO TENANT.
-- **Owner:** por atribuir (papel sugerido: responsável de protecção de dados, com o responsável de segurança).
+- **Boundary:** F1, F3 and F7.
+- **Precondition:** data accessible to the agent leaves through an unforeseen path: the agent itself, a pre-authenticated URL, logs and ledger, or direct access to the resource.
+- **Mitigation:** least privilege per resource (Selected, `read` role) and two read operations. Hourly limit. The ledger stores a SHA-256 digest of the arguments and never tokens, content, prompts or unnecessary personal data. The executor returns bytes and not the `Location`. In the strong control profile the agent's direct accesses to the resource are removed, and restricted egress is an additional defence, not a substitute. Defender, Sentinel and Purview are to be assessed and coverage is not presumed.
+- **Test:** BT-18 (no secrets or unnecessary sensitive content in the ledger and the logs), local. BT-06 only in phases C and D. TC-20 to be created (phase C): the agent runtime has no route to Graph or to the storage.
+- **Evidence:** `action.completed` with digest and minimal reference, absence of content in the records, `alert.direct_access_discovered`.
+- **Residual risk:** what the agent can read can be sent out by it. Deleting data that has already been exfiltrated is outside the MVP. The pre-authenticated URL is a bearer credential, requiring no token, with a documented validity between "minutes" [M25] and "1 hour" [M28], and removing permissions may not invalidate it immediately [M28]. Defender and Purview coverage is TO BE VALIDATED IN THE TENANT.
+- **Owner:** to be assigned (suggested role: data protection lead, with the security lead).
 
-### T-21 Operação externa com resultado desconhecido
+### T-21 External operation with unknown result
 
-- **Fronteira:** F3 e F6.
-- **Pré-condição:** o pedido ao Graph, ou um passo de contenção, termina sem confirmação (timeout, erro de rede, resposta não interpretável).
-- **Mitigação:** a chamada externa tem timeout (`ExecutionOptions.ExternalTimeout`, 10 segundos por omissão no código, a calibrar na fase C). Um timeout dá `ActionState.Unknown` com `external_timeout`, e um erro não classificado dá `Unknown` com `external_error_unknown`, nunca sucesso inventado. Throttling dá `Failed` com `external_throttled`, e o executor respeita `Retry-After`: o Graph devolve 429 [M30] e o SharePoint 429 ou 503 [M31], e pedidos limitados dentro de um batch não são repetidos automaticamente [M30]. Na contenção, qualquer passo `Unknown` torna o estado global `Unknown`. A varredura fecha acções sem resultado como `Unknown`. A reconciliação e a confirmação humana tratam o que ficou por saber.
-- **Teste:** BT-11 (timeout externo produz unknown e reconciliação), BT-12 (throttling gera estado parcial visível) e BT-04, locais, sobre falhas injectadas no mundo simulado.
-- **Evidência:** `action.completed` com `execution_state` `Unknown`, `containment.step`, lista de incertezas da operação de contenção.
-- **Risco residual:** nunca se sabe se uma leitura com timeout foi servida. Para efeitos de escrita (fases posteriores) é preciso reconciliar com a fonte. Não há exactly-once universal, nem rollback universal. Os limites reais do SharePoint dependem do número de licenças, e testes de carga não são permitidos em SharePoint Online [M31], o que limita a fase E.
-- **Owner:** por atribuir (papel sugerido: engenheiro de plataforma, com o operador de incidentes).
+- **Boundary:** F3 and F6.
+- **Precondition:** the request to Graph, or a containment step, ends without confirmation (timeout, network error, uninterpretable response).
+- **Mitigation:** the external call has a timeout (`ExecutionOptions.ExternalTimeout`, 10 seconds by default in the code, to be calibrated in phase C). A timeout gives `ActionState.Unknown` with `external_timeout`, and an unclassified error gives `Unknown` with `external_error_unknown`, never an invented success. Throttling gives `Failed` with `external_throttled`, and the executor respects `Retry-After`: Graph returns 429 [M30] and SharePoint 429 or 503 [M31], and throttled requests inside a batch are not repeated automatically [M30]. In containment, any `Unknown` step makes the global state `Unknown`. The sweep closes actions without a result as `Unknown`. Reconciliation and human confirmation handle what remained unknown.
+- **Test:** BT-11 (external timeout produces unknown and reconciliation), BT-12 (throttling generates a visible partial state) and BT-04, local, over failures injected in the simulated world.
+- **Evidence:** `action.completed` with `execution_state` `Unknown`, `containment.step`, list of uncertainties of the containment operation.
+- **Residual risk:** it is never known whether a read that timed out was served. For write effects (later phases) it is necessary to reconcile with the source. There is no universal exactly-once, nor universal rollback. The real SharePoint limits depend on the number of licences, and load tests are not permitted in SharePoint Online [M31], which limits phase E.
+- **Owner:** to be assigned (suggested role: platform engineer, with the incident operator).
 
-## 4. Resumo: ameaça, teste e estado
+## 4. Summary: threat, test and status
 
-Critério do estado, aplicado à mitigação principal de cada ameaça:
+Status criterion, applied to the main mitigation of each threat:
 
-- **coberto localmente:** a mitigação principal tem BT ou TC com prova local, sobre o mundo simulado. Parte pode ficar por provar ou por implementar, indicada na linha.
-- **só fases C/D:** a mitigação principal só se prova com recursos reais, nas fases C ou D.
-- **por criar:** a especificação não tem BT para a mitigação principal e o teste `TC` só se pode fazer na fase C.
+- **covered locally:** the main mitigation has a BT or TC with local proof, over the simulated world. Part may remain unproven or unimplemented, stated on the row.
+- **phases C/D only:** the main mitigation is only proven with real resources, in phases C or D.
+- **to be created:** the specification has no BT for the main mitigation and the `TC` test can only be done in phase C.
 
-Uma classificação "coberto localmente" não é prova de contenção real: o mundo Microsoft é simulado e uma resposta 200 ou uma simulação não provam contenção (secção 18 da especificação).
+A "covered locally" classification is not proof of real containment: the Microsoft world is simulated and a 200 response or a simulation does not prove containment (section 18 of the specification).
 
-| Ameaça | BT | Testes a criar | Estado |
+| Threat | BT | Tests to create | Status |
 |---|---|---|---|
-| T-01 Prompt injection | BT-01 | TC-01 (local) | coberto localmente |
-| T-02 Roubo de token | BT-02 (local), BT-06 e BT-14 (C/D) | TC-02 (fase C) | só fases C/D |
-| T-03 Replay | BT-10, BT-03 | TC-03 (fase C) | coberto localmente |
-| T-04 Confused deputy | BT-02, BT-07 | TC-04 (local) | coberto localmente |
-| T-05 SSRF | BT-05 (C/D, complementar) | TC-05 (local e fase C) | coberto localmente (parcial: ligação de saída só na fase C) |
-| T-06 Batch e redirect bypass | BT-05 (C/D, complementar) | TC-06 (local) | coberto localmente (parcial: `$expand`, `$select` e `Location` sem teste dedicado) |
-| T-07 Recursos canónicos manipulados | BT-01 (complementar) | TC-07 (local) | coberto localmente |
-| T-08 Escalada entre tenants | BT-02 | TC-08 (local) | coberto localmente |
-| T-09 Operador comprometido | BT-19 | TC-09 (local) | coberto localmente |
-| T-10 Identidade partilhada | BT-13 (só simulação), BT-06 (só simulação) | TC-10 (não implementado) | coberto localmente (parcial: BT-13 e BT-06 só em simulação, efeito real na fase D; TC-10 por implementar) |
-| T-11 Grant cumulativo | BT-15 | TC-11 (fase D, correio) | coberto localmente (SharePoint; Exchange fora do MVP) |
-| T-12 Drift | BT-15 | nenhum | coberto localmente |
-| T-13 Revogação concorrente | BT-04, BT-03 | nenhum | coberto localmente |
-| T-14 Mensagens fora de ordem | BT-03, BT-10 (relacionados) | TC-14 (local) | coberto localmente |
-| T-15 Retry duplicado | BT-10 | nenhum | coberto localmente |
-| T-16 Indisponibilidade de SQL | BT-08 (local), BT-17 (C/D) | nenhum | coberto localmente (restauro só nas fases C/D) |
-| T-17 Indisponibilidade de APIM | BT-05 (C/D) | TC-17 (fase C) | por criar |
-| T-18 Indisponibilidade de Entra | BT-11, BT-12 (relacionados), BT-20 (C/D) | TC-18 (local) | coberto localmente (parcial: BT-20 só na fase D) |
-| T-19 Falha de digests | BT-16 (complementar) | TC-19 (fase C) | por criar |
-| T-20 Exfiltração | BT-18 (local), BT-06 (C/D) | TC-20 (fase C) | coberto localmente (parcial: caminhos directos só nas fases C/D) |
-| T-21 Resultado desconhecido | BT-11, BT-12, BT-04 | nenhum | coberto localmente |
+| T-01 Prompt injection | BT-01 | TC-01 (local) | covered locally |
+| T-02 Token theft | BT-02 (local), BT-06 and BT-14 (C/D) | TC-02 (phase C) | phases C/D only |
+| T-03 Replay | BT-10, BT-03 | TC-03 (phase C) | covered locally |
+| T-04 Confused deputy | BT-02, BT-07 | TC-04 (local) | covered locally |
+| T-05 SSRF | BT-05 (C/D, complementary) | TC-05 (local and phase C) | covered locally (partial: egress connection only in phase C) |
+| T-06 Batch and redirect bypass | BT-05 (C/D, complementary) | TC-06 (local) | covered locally (partial: `$expand`, `$select` and `Location` without a dedicated test) |
+| T-07 Manipulated canonical resources | BT-01 (complementary) | TC-07 (local) | covered locally |
+| T-08 Cross-tenant escalation | BT-02 | TC-08 (local) | covered locally |
+| T-09 Compromised operator | BT-19 | TC-09 (local) | covered locally |
+| T-10 Shared identity | BT-13 (simulation only), BT-06 (simulation only) | TC-10 (not implemented) | covered locally (partial: BT-13 and BT-06 only in simulation, real effect in phase D; TC-10 to be implemented) |
+| T-11 Cumulative grant | BT-15 | TC-11 (phase D, mail) | covered locally (SharePoint; Exchange outside the MVP) |
+| T-12 Drift | BT-15 | none | covered locally |
+| T-13 Concurrent revocation | BT-04, BT-03 | none | covered locally |
+| T-14 Out-of-order messages | BT-03, BT-10 (related) | TC-14 (local) | covered locally |
+| T-15 Duplicate retry | BT-10 | none | covered locally |
+| T-16 SQL unavailability | BT-08 (local), BT-17 (C/D) | none | covered locally (restore only in phases C/D) |
+| T-17 APIM unavailability | BT-05 (C/D) | TC-17 (phase C) | to be created |
+| T-18 Entra unavailability | BT-11, BT-12 (related), BT-20 (C/D) | TC-18 (local) | covered locally (partial: BT-20 only in phase D) |
+| T-19 Digest failure | BT-16 (complementary) | TC-19 (phase C) | to be created |
+| T-20 Exfiltration | BT-18 (local), BT-06 (C/D) | TC-20 (phase C) | covered locally (partial: direct paths only in phases C/D) |
+| T-21 Unknown result | BT-11, BT-12, BT-04 | none | covered locally |
 
-Contagem: 18 coberto localmente, 1 só fases C/D, 2 por criar, num total de 21 ameaças. Entre os 18, T-05, T-06, T-10, T-11, T-16, T-18 e T-20 têm parte por provar ou por implementar, indicada na linha.
+Count: 18 covered locally, 1 phases C/D only, 2 to be created, out of 21 threats in total. Among the 18, T-05, T-06, T-10, T-11, T-16, T-18 and T-20 have a part still to be proven or implemented, stated on the row.
 
-## 5. Testes bloqueantes da especificação (secção 15)
+## 5. Blocking tests of the specification (section 15)
 
-| Id | Teste | Prova |
+| Id | Test | Proof |
 |---|---|---|
-| BT-01 | Recurso autorizado funciona, não autorizado falha | local |
-| BT-02 | Chamador e tenant falsificados falham | local |
-| BT-03 | Suspensão invalida capacidade anterior ainda dentro da validade | local |
-| BT-04 | Corrida suspensão e execução documenta exactamente as acções em curso | local |
-| BT-05 | Gateway e backend não podem ser contornados | só fases C/D |
-| BT-06 | O agente não tem credencial alternativa para Graph | só simulação (real: fases C/D) |
-| BT-07 | Retirar uma capacidade não altera outras indevidamente | local |
-| BT-08 | SQL indisponível: negar novas acções protegidas | local, SQL real |
-| BT-09 | Bus indisponível: o bloqueio persistente continua eficaz | local |
-| BT-10 | Repetição de mensagem não duplica efeito indevidamente | local, SQL real |
-| BT-11 | Timeout externo produz unknown e reconciliação, não sucesso inventado | local |
-| BT-12 | Throttling Microsoft gera estado parcial visível | local |
-| BT-13 | Desactivar um agente não desactiva irmãos do blueprint | só simulação (real: fase D) |
-| BT-14 | Testar token previamente emitido num recurso de teste e reportar o resultado real | só simulação (real: fases C/D) |
-| BT-15 | Drift de grants é detectado e tratado | local |
-| BT-16 | Alteração de evidência é detectada nos cenários suportados pela ledger | local, SQL real |
-| BT-17 | Restauro e failover não reactivam um agente suspenso, com RPO e reconciliação validados | só fases C/D |
-| BT-18 | Sem segredos ou conteúdo sensível desnecessário na ledger e nos logs | local |
-| BT-19 | Operador sem papel não consegue suspender, reactivar ou conceder capacidades | local |
-| BT-20 | Break-glass funciona com a aplicação indisponível | só fases C/D |
+| BT-01 | Authorised resource works, unauthorised fails | local |
+| BT-02 | Forged caller and tenant fail | local |
+| BT-03 | Suspension invalidates a previous capability still within its validity | local |
+| BT-04 | Suspension and execution race documents exactly the in-flight actions | local |
+| BT-05 | Gateway and backend cannot be bypassed | phases C/D only |
+| BT-06 | The agent has no alternative credential for Graph | simulation only (real: phases C/D) |
+| BT-07 | Removing one capability does not improperly change others | local |
+| BT-08 | SQL unavailable: deny new protected actions | local, real SQL |
+| BT-09 | Bus unavailable: the persistent block remains effective | local |
+| BT-10 | Message repetition does not improperly duplicate the effect | local, real SQL |
+| BT-11 | External timeout produces unknown and reconciliation, not an invented success | local |
+| BT-12 | Microsoft throttling generates a visible partial state | local |
+| BT-13 | Disabling one agent does not disable siblings of the blueprint | simulation only (real: phase D) |
+| BT-14 | Test a previously issued token on a test resource and report the real result | simulation only (real: phases C/D) |
+| BT-15 | Grant drift is detected and handled | local |
+| BT-16 | Evidence tampering is detected in the scenarios supported by the ledger | local, real SQL |
+| BT-17 | Restore and failover do not reactivate a suspended agent, with RPO and reconciliation validated | phases C/D only |
+| BT-18 | No secrets or unnecessary sensitive content in the ledger and in the logs | local |
+| BT-19 | Operator without a role cannot suspend, reactivate or grant capabilities | local |
+| BT-20 | Break-glass works with the application unavailable | phases C/D only |
 
-BT-16 local corre contra um SQL Server 2022 num contentor (`AP_TEST_SQL`, ver `test-plan.md`). A verificação contra digests guardados em armazenamento imutável independente só existe na fase C.
+Local BT-16 runs against a SQL Server 2022 in a container (`AP_TEST_SQL`, see `test-plan.md`). Verification against digests stored in independent immutable storage only exists in phase C.
 
-## 6. Testes a criar (TC)
+## 6. Tests to be created (TC)
 
-| Id | Ameaça | Descrição | Onde corre |
+| Id | Threat | Description | Where it runs |
 |---|---|---|---|
-| TC-01 | T-01 | Argumentos com URL, `..`, parâmetros extra ou texto de instruções são recusados sem chamar o gateway de dados | local, unitário |
-| TC-02 | T-02 | Token do tenant com audiência errada ou de outra aplicação cliente: 401 no APIM e recusa no executor | fase C |
-| TC-03 | T-03 | Token capturado antes da suspensão e reutilizado depois recebe `agent_suspended` através do APIM | fase C |
-| TC-04 | T-04 | Agente A pede recurso do agente B com a sua capacidade e recebe `capability_missing` | local |
-| TC-05 | T-05 | Argumentos tipo URL, IP, esquema ou anfitrião recusados. Na fase C, o executor não liga a destinos fora da lista | local e fase C |
-| TC-06 | T-06 | `$batch`, `$expand`, `$select` recusados. A resposta nunca contém `Location` nem `downloadUrl` | local, unitário |
-| TC-07 | T-07 | Tabela de variantes de grafia do recurso, todas com `resource_not_canonical` | local, unitário |
-| TC-08 | T-08 | `agentId` de outro tenant devolve resposta igual à de agente inexistente | local |
-| TC-09 | T-09 | O mesmo PolicyAdmin não pede e aprova a reactivação | local |
-| TC-10 | T-10 | Dois agentes com o mesmo `ExecutorObjectId` são recusados | local |
-| TC-11 | T-11 | Permissão `Mail.Read` no Entra anula o âmbito do RBAC for Applications | fase D, quando o correio entrar |
-| TC-14 | T-14 | Mensagem de epoch anterior entregue depois da reactivação é descartada e auditada | local |
-| TC-17 | T-17 | APIM indisponível faz os pedidos falhar. Chamada directa ao executor recusada | fase C |
-| TC-18 | T-18 | Falhas injectadas nos adaptadores nunca produzem `VerifiedScoped` | local |
-| TC-19 | T-19 | Revogar escrita no armazenamento dispara o alerta de digest. Destino sem política `locked` é detectado | fase C |
-| TC-20 | T-20 | O runtime do agente não tem rota para Graph nem para o armazenamento | fase C |
+| TC-01 | T-01 | Arguments with URL, `..`, extra parameters or instruction text are refused without calling the data gateway | local, unit |
+| TC-02 | T-02 | Tenant token with the wrong audience or from another client application: 401 at APIM and refusal at the executor | phase C |
+| TC-03 | T-03 | Token captured before the suspension and reused afterwards receives `agent_suspended` through APIM | phase C |
+| TC-04 | T-04 | Agent A requests a resource of agent B with its capability and receives `capability_missing` | local |
+| TC-05 | T-05 | URL-like, IP, scheme or host arguments refused. In phase C, the executor does not connect to destinations outside the list | local and phase C |
+| TC-06 | T-06 | `$batch`, `$expand`, `$select` refused. The response never contains `Location` or `downloadUrl` | local, unit |
+| TC-07 | T-07 | Table of spelling variants of the resource, all with `resource_not_canonical` | local, unit |
+| TC-08 | T-08 | `agentId` from another tenant returns a response identical to that of a non-existent agent | local |
+| TC-09 | T-09 | The same PolicyAdmin does not request and approve the reactivation | local |
+| TC-10 | T-10 | Two agents with the same `ExecutorObjectId` are refused | local |
+| TC-11 | T-11 | `Mail.Read` permission in Entra cancels the RBAC for Applications scope | phase D, when mail comes in |
+| TC-14 | T-14 | Message from a previous epoch delivered after the reactivation is discarded and audited | local |
+| TC-17 | T-17 | APIM unavailable makes requests fail. Direct call to the executor refused | phase C |
+| TC-18 | T-18 | Failures injected in the adapters never produce `VerifiedScoped` | local |
+| TC-19 | T-19 | Revoking write on the storage triggers the digest alert. Destination without a `locked` policy is detected | phase C |
+| TC-20 | T-20 | The agent runtime has no route to Graph or to the storage | phase C |
 
-## 7. Lacunas deste documento
+## 7. Gaps in this document
 
-- Não foi validado nada em tenant. Todos os claims, formatos de identificadores e comportamentos de revogação marcados "POR VALIDAR NO TENANT" mantêm-se por validar.
-- O estado dos BT locais segue o desenho. Confirmar contra a suite quando estiver estável.
-- A lista de lacunas da documentação Microsoft, com impacto, está em `gaps-and-assumptions.md`. O registo de riscos está em `risks.md`.
+- Nothing was validated in a tenant. All claims, identifier formats and revocation behaviours marked "TO BE VALIDATED IN THE TENANT" remain to be validated.
+- The status of the local BT tests follows the design. Confirm against the suite when it is stable.
+- The list of gaps in the Microsoft documentation, with impact, is in `gaps-and-assumptions.md`. The risk register is in `risks.md`.
 
-## 8. Fontes
+## 8. Sources
 
-Todas verificadas em 2026-11-11. Prefixo: `https://learn.microsoft.com/en-us/`. A coluna "Leitura" indica se a página foi lida por inteiro ou só por excerto de pesquisa. O que vem de excerto não pode sustentar, sozinho, uma decisão.
+All verified on 2026-11-11. Prefix: `https://learn.microsoft.com/en-us/`. The "Reading" column indicates whether the page was read in full or only from a search excerpt. What comes from an excerpt cannot, on its own, support a decision.
 
-| Chave | Caminho | Leitura |
+| Key | Path | Reading |
 |---|---|---|
-| M01 | `entra/identity/users/users-revoke-access` | inteira |
-| M02 | `entra/identity/conditional-access/concept-continuous-access-evaluation` | inteira |
-| M03 | `entra/identity/conditional-access/concept-continuous-access-evaluation-workload` | inteira |
-| M04 | `entra/identity/conditional-access/agent-id` | inteira |
-| M06 | `entra/agent-id/manage-agent-identities-admin` | inteira |
-| M07 | `entra/identity-platform/configurable-token-lifetimes` | inteira |
-| M08 | `entra/identity-platform/access-tokens` | inteira |
-| M09 | `entra/identity/managed-identities-azure-resources/managed-identities-faq` | inteira |
-| M14 | `microsoft-agent-365/developer/identity` | inteira |
-| M21 | `entra/agent-id/agent-users` | inteira |
-| M22 | `graph/permissions-selected-overview` | inteira |
-| M23 | `graph/api/site-post-permissions?view=graph-rest-1.0` | inteira |
-| M25 | `graph/api/driveitem-get-content?view=graph-rest-1.0` | inteira |
-| M26 | `graph/api/driveitem-get?view=graph-rest-1.0` | inteira |
-| M27 | `graph/api/driveitem-list-children?view=graph-rest-1.0` | inteira |
-| M28 | `graph/api/resources/driveitem?view=graph-rest-1.0#instance-attributes` | excerto |
-| M29 | `graph/json-batching` | inteira |
-| M30 | `graph/throttling` | inteira |
-| M31 | `sharepoint/dev/general-development/how-to-avoid-getting-throttled-or-blocked-in-sharepoint-online` | inteira |
-| M32 | `exchange/permissions-exo/application-rbac` | inteira |
-| M35 | `azure/api-management/validate-azure-ad-token-policy` | inteira |
-| M36 | `azure/api-management/validate-jwt-policy` | excerto |
-| M37 | `azure/api-management/api-management-howto-use-managed-service-identity#security-considerations-for-managed-identities` | excerto |
-| M38 | `entra/msidweb/advanced/api-gateways#follow-best-practices` | excerto |
-| M39 | `sql/relational-databases/security/ledger/ledger-overview` | inteira |
-| M40 | `sql/relational-databases/security/ledger/ledger-database-verification` | inteira |
-| M41 | `sql/relational-databases/security/ledger/ledger-digest-management` | inteira |
-| M42 | `sql/relational-databases/security/ledger/ledger-limits` | inteira |
-| M45 | `sql/relational-databases/security/ledger/ledger-monitor-digest-uploads` | inteira |
-| M46 | `azure/storage/blobs/immutable-storage-overview` | inteira |
-| M49 | `azure/confidential-ledger/limits` | inteira |
-| M50 | `azure/service-bus-messaging/service-bus-message-loss-and-duplicates` | excerto |
-| M51 | `azure/service-bus-messaging/duplicate-detection` | inteira |
-| M52 | `azure/service-bus-messaging/service-bus-dead-letter-queues` | inteira |
-| M53 | `azure/azure-sql/database/authentication-azure-ad-only-authentication` | inteira |
-| M55 | `azure/api-management/secure-api-management#network-security` | excerto |
-| M56 | `azure/service-bus-messaging/message-sessions` | excerto |
-| M64 | `microsoft-agent-365/admin/manage-agents` | excerto |
+| M01 | `entra/identity/users/users-revoke-access` | full |
+| M02 | `entra/identity/conditional-access/concept-continuous-access-evaluation` | full |
+| M03 | `entra/identity/conditional-access/concept-continuous-access-evaluation-workload` | full |
+| M04 | `entra/identity/conditional-access/agent-id` | full |
+| M06 | `entra/agent-id/manage-agent-identities-admin` | full |
+| M07 | `entra/identity-platform/configurable-token-lifetimes` | full |
+| M08 | `entra/identity-platform/access-tokens` | full |
+| M09 | `entra/identity/managed-identities-azure-resources/managed-identities-faq` | full |
+| M14 | `microsoft-agent-365/developer/identity` | full |
+| M21 | `entra/agent-id/agent-users` | full |
+| M22 | `graph/permissions-selected-overview` | full |
+| M23 | `graph/api/site-post-permissions?view=graph-rest-1.0` | full |
+| M25 | `graph/api/driveitem-get-content?view=graph-rest-1.0` | full |
+| M26 | `graph/api/driveitem-get?view=graph-rest-1.0` | full |
+| M27 | `graph/api/driveitem-list-children?view=graph-rest-1.0` | full |
+| M28 | `graph/api/resources/driveitem?view=graph-rest-1.0#instance-attributes` | excerpt |
+| M29 | `graph/json-batching` | full |
+| M30 | `graph/throttling` | full |
+| M31 | `sharepoint/dev/general-development/how-to-avoid-getting-throttled-or-blocked-in-sharepoint-online` | full |
+| M32 | `exchange/permissions-exo/application-rbac` | full |
+| M35 | `azure/api-management/validate-azure-ad-token-policy` | full |
+| M36 | `azure/api-management/validate-jwt-policy` | excerpt |
+| M37 | `azure/api-management/api-management-howto-use-managed-service-identity#security-considerations-for-managed-identities` | excerpt |
+| M38 | `entra/msidweb/advanced/api-gateways#follow-best-practices` | excerpt |
+| M39 | `sql/relational-databases/security/ledger/ledger-overview` | full |
+| M40 | `sql/relational-databases/security/ledger/ledger-database-verification` | full |
+| M41 | `sql/relational-databases/security/ledger/ledger-digest-management` | full |
+| M42 | `sql/relational-databases/security/ledger/ledger-limits` | full |
+| M45 | `sql/relational-databases/security/ledger/ledger-monitor-digest-uploads` | full |
+| M46 | `azure/storage/blobs/immutable-storage-overview` | full |
+| M49 | `azure/confidential-ledger/limits` | full |
+| M50 | `azure/service-bus-messaging/service-bus-message-loss-and-duplicates` | excerpt |
+| M51 | `azure/service-bus-messaging/duplicate-detection` | full |
+| M52 | `azure/service-bus-messaging/service-bus-dead-letter-queues` | full |
+| M53 | `azure/azure-sql/database/authentication-azure-ad-only-authentication` | full |
+| M55 | `azure/api-management/secure-api-management#network-security` | excerpt |
+| M56 | `azure/service-bus-messaging/message-sessions` | excerpt |
+| M64 | `microsoft-agent-365/admin/manage-agents` | excerpt |

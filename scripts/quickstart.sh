@@ -58,7 +58,7 @@ expires() { date -u -d "+$1 days" +%Y-%m-%dT%H:%M:%SZ; }
 read_body() { printf '{"operation":"sharepoint.document.read","arguments":{"siteId":"%s","driveId":"%s","itemId":"01ITEM"},"idempotencyKey":"%s"}' "$SITE" "$DRIVE" "$(uuid)"; }
 
 step "1. Register the agent (PolicyAdmin A)"
-OUT=$(call "$ADMIN_A" POST "$CONTROL/agents" "{\"identityType\":\"EntraAgentId\",\"identityObjectId\":\"$AGENT_OID\",\"blueprintId\":null,\"executorObjectId\":\"$EXECUTOR_OID\",\"runtime\":\"container-app/pilot\",\"purpose\":\"consultar documentos aprovados\",\"ownerObjectId\":\"$(uuid)\",\"sponsorObjectId\":null,\"contact\":\"owner@example.invalid\",\"maxActionsPerHour\":100,\"walletExpiresAt\":\"$(expires 30)\"}")
+OUT=$(call "$ADMIN_A" POST "$CONTROL/agents" "{\"identityType\":\"EntraAgentId\",\"identityObjectId\":\"$AGENT_OID\",\"blueprintId\":null,\"executorObjectId\":\"$EXECUTOR_OID\",\"runtime\":\"container-app/pilot\",\"purpose\":\"read approved documents\",\"ownerObjectId\":\"$(uuid)\",\"sponsorObjectId\":null,\"contact\":\"owner@example.invalid\",\"maxActionsPerHour\":100,\"walletExpiresAt\":\"$(expires 30)\"}")
 echo "$OUT"
 AGENT_ID=$(printf '%s' "$OUT" | sed -n 's/.*"id":"\([0-9a-f-]\{36\}\)".*/\1/p' | head -1)
 [ -n "$AGENT_ID" ] || { echo "Registration failed."; exit 1; }
@@ -75,7 +75,7 @@ step "4. The agent reads the approved document through the executor"
 call "$AGENT" POST "$EXECUTOR/actions" "$(read_body)"
 
 step "5. Incident: suspend (IncidentOperator)"
-call "$INCIDENT" POST "$CONTROL/agents/$AGENT_ID/suspend" '{"reason":"comportamento anomalo"}'
+call "$INCIDENT" POST "$CONTROL/agents/$AGENT_ID/suspend" '{"reason":"anomalous behaviour"}'
 
 step "6. The agent tries again: refused with agent_suspended"
 call "$AGENT" POST "$EXECUTOR/actions" "$(read_body)"

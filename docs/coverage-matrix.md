@@ -1,251 +1,251 @@
-# Matriz de cobertura de contenção
+# Containment coverage matrix
 
-Estado: rascunho por validar no tenant
+State: draft pending validation in the tenant
 
-Verificado em documentação oficial a 2026-11-11
+Verified against official documentation on 2026-11-11
 
-## 1. Finalidade e estado real
+## 1. Purpose and real state
 
-Este documento classifica, por tipo de agente ou identidade, o que o produto consegue conter e com que prova. Responde à secção 20 da especificação ("classificação de cobertura por tipo de agente").
+This document classifies, by type of agent or identity, what the product can contain and with what proof. It answers section 20 of the specification ("coverage classification by agent type").
 
-As classificações abaixo são tectos. Indicam o máximo que o produto pode atribuir honestamente se as condições escritas forem cumpridas e provadas. Enquanto não forem provadas, a classificação por omissão é `Unverified` e o estado de contenção por omissão é `unknown`.
+The classifications below are ceilings. They indicate the maximum the product can honestly assign if the written conditions are met and proven. Until they are proven, the default classification is `Unverified` and the default containment state is `unknown`.
 
-Estado do projecto, sem exagero:
+Project state, without exaggeration:
 
-- Bloqueio local: implementado na fase B, em .NET 8, sobre um armazém local. O comportamento está provado só em testes locais.
-- Contenção externa: os adaptadores de Entra, remoção de grants, isolamento de runtime e sonda de token antigo são simulados, com injecção de falhas. Não existe adaptador real para Entra nem para Graph.
-- Fases C, D e E: não executadas. Os testes BT-05, BT-06, BT-14, BT-17 e BT-20 só ficam provados nas fases C e D. Localmente existe, no máximo, uma aproximação simulada que não conta como prova.
-- Nada neste documento foi medido em tenant. Todos os tempos citados vêm da documentação.
+- Local blocking: implemented in phase B, in .NET 8, over a local store. The behaviour is proven only in local tests.
+- External containment: the adapters for Entra, grant removal, runtime isolation and the old-token probe are simulated, with fault injection. There is no real adapter for Entra or for Graph.
+- Phases C, D and E: not executed. Tests BT-05, BT-06, BT-14, BT-17 and BT-20 are only proven in phases C and D. Locally there is, at most, a simulated approximation that does not count as proof.
+- Nothing in this document was measured in a tenant. All the times cited come from the documentation.
 
-Legenda: Verificado (texto lido na página), Inferência (conclusão a partir de textos verificados), NÃO VERIFICADO (a documentação lida não o afirma). Todas as fontes são páginas de Microsoft Learn verificadas a 2026-11-11, com prefixo `https://learn.microsoft.com/en-us/` quando abreviadas. Os códigos Lxx remetem para `permission-matrix.md`.
+Legend: Verified (text read on the page), Inference (conclusion drawn from verified texts), NOT VERIFIED (the documentation read does not state it). All sources are Microsoft Learn pages verified on 2026-11-11, with the prefix `https://learn.microsoft.com/en-us/` when abbreviated. The Lxx codes refer to `permission-matrix.md`.
 
-## 2. Definições
+## 2. Definitions
 
-### Classificação de cobertura
+### Coverage classification
 
-| Classificação | Significado | Condição para a atribuir |
+| Classification | Meaning | Condition to assign it |
 | --- | --- | --- |
-| `GatewayEnforced` | Toda a acção de dados do agente, no âmbito declarado, passa pelo gateway e pelo executor. | Inventário de caminhos alternativos feito e vazio, para o âmbito declarado. O agente não tem grant próprio nem credencial própria para o recurso. Teste negativo de acesso directo executado. `direct_access_verified_absent` verdadeiro, com `last_verified_at` recente. |
-| `DirectAccessPossible` | Existe, ou não se consegue excluir, um caminho directo ao recurso. | Basta um grant no próprio agente, uma credencial partilhada, ou um acesso local ao recurso. Grants no próprio agente contam como caminho directo. |
-| `Unverified` | Ainda não há inventário nem teste suficientes. | É o valor por omissão. |
+| `GatewayEnforced` | Every data action of the agent, within the declared scope, goes through the gateway and the executor. | Inventory of alternative paths done and empty, for the declared scope. The agent has no grant of its own and no credential of its own for the resource. Negative direct-access test executed. `direct_access_verified_absent` true, with a recent `last_verified_at`. |
+| `DirectAccessPossible` | A direct path to the resource exists, or cannot be excluded. | A grant on the agent itself, a shared credential, or local access to the resource is enough. Grants on the agent itself count as a direct path. |
+| `Unverified` | There is not yet enough inventory or testing. | It is the default value. |
 
-A classificação aplica-se a um âmbito (recursos e operações) e nunca é universal.
+The classification applies to a scope (resources and operations) and is never universal.
 
-### Estado de contenção
+### Containment state
 
-Estados globais: `requested`, `local_blocked`, `external_pending`, `verified_scoped`, `partial`, `failed`, `unknown`. Estados por passo: Requested, Executed, Verified, Failed, Unknown.
+Global states: `requested`, `local_blocked`, `external_pending`, `verified_scoped`, `partial`, `failed`, `unknown`. Per-step states: Requested, Executed, Verified, Failed, Unknown.
 
-- `verified_scoped` exige que todos os passos sejam verificados por sonda e que o âmbito seja explícito. Um passo "token anterior recusado" só é Verified se a sonda mostrar a recusa. Se a sonda mostrar que o token foi aceite durante um tempo medido, o passo é Failed, o estado global é `partial` e o tempo medido fica visível.
-- Qualquer passo Unknown dá `unknown`. A mistura de passos verificados e não verificados dá `partial`. Tudo falhado dá `failed`.
-- `suspended` nunca passa sozinho a `verified_scoped`. A confirmação administrativa (a API respondeu) não é confirmação por sonda.
+- `verified_scoped` requires all steps to be verified by probe and the scope to be explicit. A "previous token refused" step is only Verified if the probe shows the refusal. If the probe shows that the token was accepted for a measured time, the step is Failed, the global state is `partial` and the measured time stays visible.
+- Any Unknown step gives `unknown`. A mix of verified and unverified steps gives `partial`. All failed gives `failed`.
+- `suspended` never becomes `verified_scoped` on its own. Administrative confirmation (the API responded) is not confirmation by probe.
 
-### O bloqueio local é comum a todos os tipos
+### Local blocking is common to all types
 
-Em todos os tipos, o bloqueio local é o mesmo e é a única parte que o produto controla sozinho. A suspensão persiste, numa transacção, o estado `Suspended`, o novo `revocation_epoch`, a operação de contenção em `LocalBlocked` e a mensagem de outbox. Depois disso, o executor recusa novas admissões. A especificação fixa como objectivo recusar novas admissões até 5 segundos após a confirmação persistida da suspensão no ambiente piloto. É um objectivo, ainda sem medição real.
+In all types, the local blocking is the same and is the only part the product controls on its own. The suspension persists, in one transaction, the `Suspended` state, the new `revocation_epoch`, the containment operation in `LocalBlocked` and the outbox message. After that, the executor refuses new admissions. The specification sets as an objective to refuse new admissions within 5 seconds of the persisted confirmation of the suspension in the pilot environment. It is an objective, still without real measurement.
 
-O que o bloqueio local não faz: não invalida tokens já emitidos pela Microsoft, não cancela uma chamada já enviada ao Graph, e não tira ao agente grants que ele tenha directamente no recurso. As acções já admitidas e em curso são listadas e reportadas à parte (`InFlightActionIds`).
+What local blocking does not do: it does not invalidate tokens already issued by Microsoft, it does not cancel a call already sent to Graph, and it does not remove from the agent grants that it holds directly on the resource. Actions already admitted and in progress are listed and reported separately (`InFlightActionIds`).
 
-## 3. Quadro resumo
+## 3. Summary table
 
-| Tipo | Bloqueio local (gateway) | Acção externa documentada | Tokens já emitidos | CAE | Classificação máxima | Estado de contenção máximo |
+| Type | Local blocking (gateway) | Documented external action | Tokens already issued | CAE | Maximum classification | Maximum containment state |
 | --- | --- | --- | --- | --- | --- | --- |
-| Entra Agent ID | Sim, comum | Desactivar agent identity (v1.0). Desactivar agent user. Remover grants no recurso. Revogar sessões do agent user (inferência) | Destino NÃO VERIFICADO | NÃO VERIFICADO | `GatewayEnforced` se o inventário provar ausência de grants directos. Caso contrário `DirectAccessPossible` ou `Unverified` | `verified_scoped` só para o recurso testado e só se a sonda de token anterior for recusada. Senão `partial` |
-| Service principal | Sim, comum | `accountEnabled` igual a false (v1.0). Remover grants no recurso. Rodar credenciais | Sem afirmação directa. Válidos até expirar, por analogia (inferência) | Sim, com restrições estreitas | `GatewayEnforced` se o inventário provar ausência de grants directos | `verified_scoped` só para Graph e para o recurso testado, com CAE `cp1` activo ou sonda favorável. Senão `partial` |
-| Managed identity | Sim, comum | Sem disable documentado. Remover grants no recurso. Parar ou isolar o runtime | Cache de cerca de 24 horas, sem refresh forçado | Não | `GatewayEnforced` se a identidade não estiver partilhada e o inventário provar ausência de grants directos | `verified_scoped` só para o recurso em que a sonda confirme a recusa do token anterior. Para o resto `partial` |
-| Copilot Studio | Só se as chamadas passarem pelo executor | Block no centro de administração Microsoft 365 (excerto). Se for aplicação clássica, aplicam-se as linhas de service principal | NÃO VERIFICADO | NÃO VERIFICADO | `Unverified` | `unknown`, ou `partial` num passo verificado |
-| Foundry | Só se as chamadas passarem pelo executor | Como Copilot Studio. Pode ser aplicação clássica ou service principal | NÃO VERIFICADO | NÃO VERIFICADO | `Unverified` | `unknown`, ou `partial` num passo verificado |
-| MCP | Só nas ferramentas servidas pelo executor | Depende do servidor MCP. Sem acção Entra se o servidor usar chave de API | Depende do servidor | Não aplicável | `Unverified` hoje. Tecto teórico `GatewayEnforced` limitado às ferramentas do executor, fora do MVP | `unknown`, ou `partial` |
-| Terceiros | Só se as chamadas passarem pelo executor | Remover consentimento e grants no tenant. Políticas de workload identities não cobrem apps multitenant nem SaaS de terceiros | Fora do controlo do tenant | Fora de âmbito (documentado) | `Unverified` | `partial` no melhor caso, `unknown` por omissão |
+| Entra Agent ID | Yes, common | Disable agent identity (v1.0). Disable agent user. Remove grants on the resource. Revoke agent user sessions (inference) | Outcome NOT VERIFIED | NOT VERIFIED | `GatewayEnforced` if the inventory proves absence of direct grants. Otherwise `DirectAccessPossible` or `Unverified` | `verified_scoped` only for the tested resource and only if the previous-token probe is refused. Otherwise `partial` |
+| Service principal | Yes, common | `accountEnabled` equal to false (v1.0). Remove grants on the resource. Rotate credentials | No direct statement. Valid until they expire, by analogy (inference) | Yes, with narrow restrictions | `GatewayEnforced` if the inventory proves absence of direct grants | `verified_scoped` only for Graph and for the tested resource, with CAE `cp1` active or a favourable probe. Otherwise `partial` |
+| Managed identity | Yes, common | No documented disable. Remove grants on the resource. Stop or isolate the runtime | Cache of about 24 hours, no forced refresh | No | `GatewayEnforced` if the identity is not shared and the inventory proves absence of direct grants | `verified_scoped` only for the resource where the probe confirms refusal of the previous token. For the rest `partial` |
+| Copilot Studio | Only if the calls go through the executor | Block in the Microsoft 365 admin centre (excerpt). If it is a classic application, the service principal rows apply | NOT VERIFIED | NOT VERIFIED | `Unverified` | `unknown`, or `partial` on a verified step |
+| Foundry | Only if the calls go through the executor | Like Copilot Studio. It may be a classic application or service principal | NOT VERIFIED | NOT VERIFIED | `Unverified` | `unknown`, or `partial` on a verified step |
+| MCP | Only on the tools served by the executor | Depends on the MCP server. No Entra action if the server uses an API key | Depends on the server | Not applicable | `Unverified` today. Theoretical ceiling `GatewayEnforced` limited to the executor tools, outside the MVP | `unknown`, or `partial` |
+| Third parties | Only if the calls go through the executor | Remove consent and grants in the tenant. Workload identities policies do not cover multitenant apps or third-party SaaS | Outside the control of the tenant | Out of scope (documented) | `Unverified` | `partial` at best, `unknown` by default |
 
-## 4. Tipos dentro do MVP
+## 4. Types inside the MVP
 
 ### 4.1 Entra Agent ID
 
-Verificado. O Entra Agent ID tem quatro objectos: blueprint, blueprint principal, agent identity e agent user. A agent identity é um service principal com `servicePrincipalType` igual a `ServiceIdentity`. As credenciais ficam no blueprint e são partilhadas por todas as identidades filhas: "Treat each blueprint as a credential boundary". Fonte: `https://learn.microsoft.com/en-us/microsoft-agent-365/developer/identity`.
+Verified. Entra Agent ID has four objects: blueprint, blueprint principal, agent identity and agent user. The agent identity is a service principal with `servicePrincipalType` equal to `ServiceIdentity`. The credentials stay in the blueprint and are shared by all child identities: "Treat each blueprint as a credential boundary". Source: `https://learn.microsoft.com/en-us/microsoft-agent-365/developer/identity`.
 
-Verificado. Há três modos de execução, cada um com um sujeito de token diferente: S2S (a agent identity é o sujeito), OBO (o utilizador é o sujeito e a agent identity é o actor) e Agentic-User (o agent user). Mesma fonte.
+Verified. There are three execution modes, each with a different token subject: S2S (the agent identity is the subject), OBO (the user is the subject and the agent identity is the actor) and Agentic-User (the agent user). Same source.
 
-**O que se bloqueia localmente.** Novas admissões no executor, por estado e epoch. O executor tem identidade própria por agente (`ExecutorObjectId`) e o agente não recebe a credencial de dados. Se o agente não tiver grants próprios no recurso, o bloqueio local fecha o único caminho que o produto controla.
+**What is blocked locally.** New admissions in the executor, by state and epoch. The executor has its own identity per agent (`ExecutorObjectId`) and the agent does not receive the data credential. If the agent has no grants of its own on the resource, local blocking closes the only path the product controls.
 
-**Acção externa e evidência documental.**
+**External action and documentary evidence.**
 
-- Desactivar a agent identity: `PATCH /servicePrincipals/{id}/microsoft.graph.agentIdentity`, v1.0, permissão `AgentIdentity.EnableDisable.All`, papel Agent ID Administrator. Efeito declarado: "block its access and token issuance". Fontes: `https://learn.microsoft.com/en-us/graph/api/agentidentity-update?view=graph-rest-1.0` e `https://learn.microsoft.com/en-us/entra/agent-id/manage-agent-identities-admin`. O corpo exacto do pedido é inferência (L04).
-- Desactivar o agent user: propriedade `accountEnabled`, v1.0. Fonte: `https://learn.microsoft.com/en-us/graph/api/agentuser-update?view=graph-rest-1.0`. A desactivação da agent identity não está documentada como desactivando o agent user (L06).
-- Remover grants Selected no recurso (G03, G04). Verificado: "Application access is lost as soon as a scope is revoked." Sem valor numérico.
-- Revogar sessões do agent user: `revokeSignInSessions`, v1.0. A aplicação a agent users é inferência (L13).
-- Remover atribuições Azure RBAC da agent identity, se existirem. Verificado: blueprints não podem ter papéis RBAC, atribuem-se à agent identity.
-- Desactivar o blueprint principal desactiva todas as agent identities dele: "will no longer be able to authenticate". É um âmbito mais largo, com aprovação distinta. A desactivação individual é a acção por omissão (especificação, secção 8). Fonte: `https://learn.microsoft.com/en-us/entra/agent-id/manage-agent-blueprint`.
-- Política Conditional Access tenant-wide: bloqueia emissão para categorias inteiras sem alterar objectos, em Graph beta e com requisito de licença contraditório entre páginas. Não é uma acção por agente. Fonte: `https://learn.microsoft.com/en-us/entra/agent-id/disable-agent-identities`.
-- Block no centro de administração Microsoft 365 (excertos de pesquisa): segundo interruptor. Se é o mesmo estado que `accountEnabled`: NÃO VERIFICADO (L16).
+- Disable the agent identity: `PATCH /servicePrincipals/{id}/microsoft.graph.agentIdentity`, v1.0, permission `AgentIdentity.EnableDisable.All`, Agent ID Administrator role. Declared effect: "block its access and token issuance". Sources: `https://learn.microsoft.com/en-us/graph/api/agentidentity-update?view=graph-rest-1.0` and `https://learn.microsoft.com/en-us/entra/agent-id/manage-agent-identities-admin`. The exact request body is inference (L04).
+- Disable the agent user: `accountEnabled` property, v1.0. Source: `https://learn.microsoft.com/en-us/graph/api/agentuser-update?view=graph-rest-1.0`. Disabling the agent identity is not documented as disabling the agent user (L06).
+- Remove Selected grants on the resource (G03, G04). Verified: "Application access is lost as soon as a scope is revoked." No numeric value.
+- Revoke agent user sessions: `revokeSignInSessions`, v1.0. Its application to agent users is inference (L13).
+- Remove Azure RBAC assignments of the agent identity, if any exist. Verified: blueprints cannot have RBAC roles, they are assigned to the agent identity.
+- Disabling the blueprint principal disables all its agent identities: "will no longer be able to authenticate". It is a wider scope, with a separate approval. Individual disabling is the default action (specification, section 8). Source: `https://learn.microsoft.com/en-us/entra/agent-id/manage-agent-blueprint`.
+- Tenant-wide Conditional Access policy: blocks issuance for whole categories without changing objects, in Graph beta and with a licence requirement that is contradictory between pages. It is not a per-agent action. Source: `https://learn.microsoft.com/en-us/entra/agent-id/disable-agent-identities`.
+- Block in the Microsoft 365 admin centre (search excerpts): second switch. Whether it is the same state as `accountEnabled`: NOT VERIFIED (L16).
 
-**Tokens já emitidos.** NÃO VERIFICADO. Nenhuma página de Agent ID lida diz o que acontece aos access tokens já emitidos a uma agent identity. Toda a linguagem é sobre emissão futura. Prudência: assumir validade até à expiração. Ver secção 6.
+**Tokens already issued.** NOT VERIFIED. No Agent ID page read says what happens to access tokens already issued to an agent identity. All the language is about future issuance. Prudence: assume validity until expiry. See section 6.
 
-**CAE.** NÃO VERIFICADO para agentes. A única menção é "Some resources also support Continuous Access Evaluation". Não se sabe que recursos, que eventos, nem se a desactivação de uma agent identity é um evento de revogação. Fonte: `https://learn.microsoft.com/en-us/entra/identity/conditional-access/agent-id`. Inferência de risco: um cliente que declare `cp1` passa a receber tokens até 24 horas, e fora do Graph a revogação por CAE não existe.
+**CAE.** NOT VERIFIED for agents. The only mention is "Some resources also support Continuous Access Evaluation". It is not known which resources, which events, or whether disabling an agent identity is a revocation event. Source: `https://learn.microsoft.com/en-us/entra/identity/conditional-access/agent-id`. Risk inference: a client that declares `cp1` starts receiving tokens of up to 24 hours, and outside Graph revocation by CAE does not exist.
 
-**Limites do Conditional Access para agentes (verificados).** Não cobre o blueprint quando adquire token para criar identidades. Não cobre a troca intermédia de tokens no `AAD Token Exchange Endpoint: Public`. A política sobre a agent identity não cobre pedidos OBO nem o agent user. Não se aplica com Security defaults. Não se aplica a acesso por chave de API.
+**Limits of Conditional Access for agents (verified).** It does not cover the blueprint when it acquires a token to create identities. It does not cover the intermediate token exchange at the `AAD Token Exchange Endpoint: Public`. The policy on the agent identity does not cover OBO requests or the agent user. It does not apply with Security defaults. It does not apply to access by API key.
 
-**Caminhos alternativos a inventariar.** Ver secção 7. Em particular: o fluxo OBO e o agent user são sujeitos de token distintos, e as credenciais do blueprint são partilhadas por identidades irmãs.
+**Alternative paths to inventory.** See section 7. In particular: the OBO flow and the agent user are distinct token subjects, and the blueprint credentials are shared by sibling identities.
 
-**Classificação máxima honesta.** `GatewayEnforced`, para o âmbito (site, biblioteca, operações) declarado, se: a agent identity não tem grant próprio no recurso; o executor tem identidade própria; o agent user, se existir, também não tem acesso; e o teste negativo de acesso directo passou. Se existir um grant amplo ou próprio, desce a `DirectAccessPossible`. Sem inventário, `Unverified`.
+**Maximum honest classification.** `GatewayEnforced`, for the declared scope (site, library, operations), if: the agent identity has no grant of its own on the resource; the executor has its own identity; the agent user, if one exists, also has no access; and the negative direct-access test passed. If a broad or own grant exists, it drops to `DirectAccessPossible`. Without inventory, `Unverified`.
 
-**Estado de contenção máximo.** `verified_scoped`, com este âmbito explícito: novas admissões recusadas no gateway, nova emissão de token pela agent identity recusada por sonda, grant do recurso R removido e leitura recusada por sonda, token anterior recusado em R por sonda (BT-14). O âmbito não inclui outros recursos que a agent identity alcance. Se a sonda de token anterior não for executada ou mostrar aceitação, o estado é `partial`, com o tempo medido. Se a desactivação não puder ser verificada, `unknown`.
+**Maximum containment state.** `verified_scoped`, with this explicit scope: new admissions refused at the gateway, new token issuance by the agent identity refused by probe, grant on resource R removed and read refused by probe, previous token refused on R by probe (BT-14). The scope does not include other resources that the agent identity can reach. If the previous-token probe is not executed or shows acceptance, the state is `partial`, with the measured time. If the disabling cannot be verified, `unknown`.
 
 ### 4.2 Service principal
 
-Verificado. Desactivação: `PATCH https://graph.microsoft.com/v1.0/servicePrincipals/{id}` com `{"accountEnabled": false}`, permissão `Application.ReadWrite.All`, papéis Cloud Application Administrator, Application Administrator, ou owner. Efeito declarado: impede a emissão de tokens "for that application", num só tenant. Fonte: `https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/disable-user-sign-in-portal`.
+Verified. Disabling: `PATCH https://graph.microsoft.com/v1.0/servicePrincipals/{id}` with `{"accountEnabled": false}`, permission `Application.ReadWrite.All`, roles Cloud Application Administrator, Application Administrator, or owner. Declared effect: it prevents the issuance of tokens "for that application", in a single tenant. Source: `https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/disable-user-sign-in-portal`.
 
-**O que se bloqueia localmente.** O mesmo bloqueio comum, no executor. Se o service principal for a identidade que o agente usa directamente para o Graph, o bloqueio local não o impede de falar com o Graph por fora do executor. Nesse caso a classificação desce.
+**What is blocked locally.** The same common blocking, in the executor. If the service principal is the identity that the agent uses directly for Graph, local blocking does not stop it from talking to Graph outside the executor. In that case the classification drops.
 
-**Acção externa e evidência documental.**
+**External action and documentary evidence.**
 
-- `accountEnabled` igual a false (v1.0, verificado).
-- Desactivar a application (`isDisabled`): âmbito global, em todos os tenants. A página usa beta para desactivar e v1.0 para reactivar. Verificado: "it immediately stops receiving new access tokens, but existing tokens remain valid until they expire". Fonte: `https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/deactivate-app-registration`.
-- Remover grants Selected e consentimentos.
-- Rodar credenciais, quando aplicável.
-- Conditional Access para workload identities: só "Block access", só single-tenant, exige Workload Identities Premium, avaliada só quando o service principal pede token. Fonte: `https://learn.microsoft.com/en-us/entra/identity/conditional-access/workload-identity`.
+- `accountEnabled` equal to false (v1.0, verified).
+- Disable the application (`isDisabled`): global scope, in all tenants. The page uses beta to disable and v1.0 to re-enable. Verified: "it immediately stops receiving new access tokens, but existing tokens remain valid until they expire". Source: `https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/deactivate-app-registration`.
+- Remove Selected grants and consents.
+- Rotate credentials, when applicable.
+- Conditional Access for workload identities: only "Block access", only single-tenant, requires Workload Identities Premium, evaluated only when the service principal requests a token. Source: `https://learn.microsoft.com/en-us/entra/identity/conditional-access/workload-identity`.
 
-**Tokens já emitidos.** A página de `accountEnabled` não o diz. Só afirma que impede a emissão. A única fonte que liga "service principal disable" a tokens existentes é a de CAE para workload identities. Inferência: fora das condições da CAE, os tokens mantêm-se válidos até expirar. Ver secção 6.
+**Tokens already issued.** The `accountEnabled` page does not say. It only states that it prevents issuance. The only source that links "service principal disable" to existing tokens is the one on CAE for workload identities. Inference: outside the CAE conditions, tokens remain valid until they expire. See section 6.
 
-**CAE.** Aplicável, com restrições estreitas (verificadas). Só pedidos ao Microsoft Graph como recurso. Só service principals single-tenant de aplicações LOB. Só se o cliente declarar `cp1`. Eventos de revogação: "Service principal disable", "Service principal delete" e "High service principal risk". Aplicações multitenant e SaaS de terceiros estão fora de âmbito. Managed identities não são suportadas. Sem prazo numérico para service principals: a introdução diz "instantly", a página de utilizadores admite até 15 minutos. Fonte: `https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-continuous-access-evaluation-workload`.
+**CAE.** Applicable, with narrow restrictions (verified). Only requests to Microsoft Graph as the resource. Only single-tenant service principals of LOB applications. Only if the client declares `cp1`. Revocation events: "Service principal disable", "Service principal delete" and "High service principal risk". Multitenant applications and third-party SaaS are out of scope. Managed identities are not supported. No numeric deadline for service principals: the introduction says "instantly", the users page admits up to 15 minutes. Source: `https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-continuous-access-evaluation-workload`.
 
-**Classificação máxima honesta.** `GatewayEnforced` se o service principal que o agente usa não tem grant próprio no recurso e o executor usa outra identidade. `DirectAccessPossible` se o próprio service principal do agente tem grants amplos ou Selected.
+**Maximum honest classification.** `GatewayEnforced` if the service principal that the agent uses has no grant of its own on the resource and the executor uses another identity. `DirectAccessPossible` if the agent's own service principal has broad or Selected grants.
 
-**Estado de contenção máximo.** `verified_scoped` para Graph e para o recurso testado, se a sonda de token anterior for recusada (por CAE com `cp1`, ou por remoção do grant no recurso). Caso contrário `partial`, com o tempo medido. Para recursos que não sejam o Graph, a CAE não ajuda e fica `partial` ou `unknown`.
+**Maximum containment state.** `verified_scoped` for Graph and for the tested resource, if the previous-token probe is refused (by CAE with `cp1`, or by removing the grant on the resource). Otherwise `partial`, with the measured time. For resources other than Graph, CAE does not help and it is `partial` or `unknown`.
 
 ### 4.3 Managed identity
 
-Verificado. Não existe, nas páginas lidas, procedimento Entra de desactivação equivalente a `accountEnabled` para managed identities. Se `accountEnabled` é suportado e eficaz no service principal de uma managed identity: NÃO VERIFICADO (L11).
+Verified. In the pages read there is no Entra disabling procedure equivalent to `accountEnabled` for managed identities. Whether `accountEnabled` is supported and effective on the service principal of a managed identity: NOT VERIFIED (L11).
 
-**O que se bloqueia localmente.** O mesmo bloqueio comum. É o controlo principal neste tipo, porque os controlos Entra são os mais fracos dos três tipos.
+**What is blocked locally.** The same common blocking. It is the main control for this type, because the Entra controls are the weakest of the three types.
 
-**Acção externa e evidência documental.**
+**External action and documentary evidence.**
 
-- Remover o grant no recurso: "Remove the identity's access to the target resource". Para Logic Apps (excerto): desactivar a identidade system-assigned ou remover a user-assigned. Fonte: `https://learn.microsoft.com/en-us/azure/logic-apps/authenticate-with-managed-identity`.
-- Parar ou isolar o runtime a que a identidade está associada. Verificado: "The security boundary of the identity is the resource to which it's attached." Fonte: `https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/managed-identities-faq`.
-- Eliminar a identidade não é acção de emergência (especificação, secção 8). Fica em soft delete durante 30 dias e os tokens anteriores continuam válidos.
-- Conditional Access: "Managed identities aren't covered by policy." A página sugere access reviews como alternativa. Fonte: `https://learn.microsoft.com/en-us/entra/identity/conditional-access/workload-identity`.
+- Remove the grant on the resource: "Remove the identity's access to the target resource". For Logic Apps (excerpt): disable the system-assigned identity or remove the user-assigned one. Source: `https://learn.microsoft.com/en-us/azure/logic-apps/authenticate-with-managed-identity`.
+- Stop or isolate the runtime to which the identity is attached. Verified: "The security boundary of the identity is the resource to which it's attached." Source: `https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/managed-identities-faq`.
+- Deleting the identity is not an emergency action (specification, section 8). It stays in soft delete for 30 days and the previous tokens remain valid.
+- Conditional Access: "Managed identities aren't covered by policy." The page suggests access reviews as an alternative. Source: `https://learn.microsoft.com/en-us/entra/identity/conditional-access/workload-identity`.
 
-**Tokens já emitidos (verificado).** Cache de tokens de cerca de 24 horas por URI de recurso. "Today, it isn't possible to force a managed identity's token to be refreshed before its expiry." Depois de eliminar a identidade, os tokens anteriores continuam válidos até à expiração original. Alguns sistemas, como o Azure RBAC, "will continue to accept requests from that token until it expires". Alterações de permissões podem demorar várias horas. Tempo de vida configurável não é suportado. Fonte: a mesma FAQ e `https://learn.microsoft.com/en-us/entra/identity-platform/configurable-token-lifetimes`.
+**Tokens already issued (verified).** Token cache of about 24 hours per resource URI. "Today, it isn't possible to force a managed identity's token to be refreshed before its expiry." After the identity is deleted, the previous tokens remain valid until the original expiry. Some systems, such as Azure RBAC, "will continue to accept requests from that token until it expires". Permission changes may take several hours. Configurable lifetime is not supported. Source: the same FAQ and `https://learn.microsoft.com/en-us/entra/identity-platform/configurable-token-lifetimes`.
 
-**CAE.** Não aplicável. "Managed identities aren't currently supported by CAE for workload identities."
+**CAE.** Not applicable. "Managed identities aren't currently supported by CAE for workload identities."
 
-**Aviso de desenho.** A documentação recomenda federar o blueprint a uma managed identity para não guardar segredo. O efeito da cache de 24 horas da managed identity sobre a revogação de um blueprint federado: NÃO VERIFICADO. A especificação proíbe reutilizar a mesma user-assigned managed identity entre runtimes com âmbitos incompatíveis. Uma identidade partilhada degrada a classificação.
+**Design warning.** The documentation recommends federating the blueprint to a managed identity so as not to store a secret. The effect of the managed identity's 24-hour cache on the revocation of a federated blueprint: NOT VERIFIED. The specification forbids reusing the same user-assigned managed identity across runtimes with incompatible scopes. A shared identity degrades the classification.
 
-**Classificação máxima honesta.** `GatewayEnforced` se a identidade não é partilhada e o inventário prova que não tem grants directos no recurso. Qualquer grant directo, ou partilha com outro runtime, dá `DirectAccessPossible`.
+**Maximum honest classification.** `GatewayEnforced` if the identity is not shared and the inventory proves it has no direct grants on the resource. Any direct grant, or sharing with another runtime, gives `DirectAccessPossible`.
 
-**Estado de contenção máximo.** Por omissão `partial`. Pode chegar a `verified_scoped` só para o recurso SharePoint em que a sonda confirme que o token anterior é recusado depois da remoção do grant (inferência, a medir em BT-14). Para qualquer outro recurso que a identidade alcance, `partial`, porque o Entra não oferece revogação e a validade pode chegar a 24 horas.
+**Maximum containment state.** `partial` by default. It can reach `verified_scoped` only for the SharePoint resource where the probe confirms that the previous token is refused after the grant is removed (inference, to be measured in BT-14). For any other resource that the identity can reach, `partial`, because Entra offers no revocation and validity can reach 24 hours.
 
-## 5. Casos fora do MVP
+## 5. Cases outside the MVP
 
-A especificação (secção 2) exclui do MVP a promessa de controlo de Copilot Studio, Foundry, MCP e terceiros. As linhas abaixo não são promessas. Servem para dizer qual é o tecto honesto e o que fica por inventariar.
+The specification (section 2) excludes from the MVP the promise of control of Copilot Studio, Foundry, MCP and third parties. The lines below are not promises. They serve to say what the honest ceiling is and what remains to be inventoried.
 
 ### 5.1 Copilot Studio
 
-- Verificado: agentes criados em versões anteriores do Copilot Studio podem existir como aplicações clássicas ou service principals e "don't have Microsoft Entra agent identities". Fonte: `https://learn.microsoft.com/en-us/entra/agent-id/disable-agent-identities`. Nesse caso aplica-se a linha de service principal.
-- Excertos de pesquisa (páginas não lidas por inteiro): bloquear um agente criado em SharePoint ou Foundry "only impacts its availability in Microsoft Copilot Chat". Bloquear uma instância "stops it and any actions it's performing". Fontes: `https://learn.microsoft.com/en-us/microsoft-agent-365/admin/agent-actions` e `https://learn.microsoft.com/en-us/microsoft-agent-365/admin/manage-agent-instances`. Block no centro de administração não é, por si, revogação de acesso a dados.
-- Local: o bloqueio no executor só vale se o agente chamar o executor. Um agente hospedado que use os seus conectores nativos não passa pelo gateway.
-- CAE e tokens: NÃO VERIFICADO.
-- Tecto: `Unverified`. Estado: `unknown`, ou `partial` se um passo for executado e verificado.
+- Verified: agents created in earlier versions of Copilot Studio may exist as classic applications or service principals and "don't have Microsoft Entra agent identities". Source: `https://learn.microsoft.com/en-us/entra/agent-id/disable-agent-identities`. In that case the service principal row applies.
+- Search excerpts (pages not read in full): blocking an agent created in SharePoint or Foundry "only impacts its availability in Microsoft Copilot Chat". Blocking an instance "stops it and any actions it's performing". Sources: `https://learn.microsoft.com/en-us/microsoft-agent-365/admin/agent-actions` and `https://learn.microsoft.com/en-us/microsoft-agent-365/admin/manage-agent-instances`. Block in the admin centre is not, by itself, revocation of access to data.
+- Local: blocking in the executor only holds if the agent calls the executor. A hosted agent that uses its native connectors does not go through the gateway.
+- CAE and tokens: NOT VERIFIED.
+- Ceiling: `Unverified`. State: `unknown`, or `partial` if a step is executed and verified.
 
 ### 5.2 Foundry
 
-- Aplica-se o mesmo texto de Copilot Studio sobre aplicações clássicas e Block.
-- Verificado: o APIM AI gateway governa tráfego de modelos (limite de tokens, cache semântica, segurança de conteúdo, registo). "AI gateway in Microsoft Foundry" está em preview. Fonte: `https://learn.microsoft.com/en-us/azure/api-management/genai-gateway-capabilities`. Inferência: não oferece autorização fina por ferramenta nem carteira por agente.
-- Recursos Azure a que o runtime do Foundry acede podem ter Azure RBAC próprio, fora do controlo da carteira.
-- Tecto: `Unverified`. Estado: `unknown`, ou `partial`.
+- The same text as Copilot Studio applies on classic applications and Block.
+- Verified: the APIM AI gateway governs model traffic (token limit, semantic cache, content safety, logging). "AI gateway in Microsoft Foundry" is in preview. Source: `https://learn.microsoft.com/en-us/azure/api-management/genai-gateway-capabilities`. Inference: it does not offer fine-grained authorisation per tool or a wallet per agent.
+- Azure resources that the Foundry runtime accesses may have their own Azure RBAC, outside the control of the wallet.
+- Ceiling: `Unverified`. State: `unknown`, or `partial`.
 
 ### 5.3 MCP
 
-- Verificado: o APIM suporta servidores MCP remotos e APIs A2A, e permite expor APIs REST como servidores MCP. Fonte: `https://learn.microsoft.com/en-us/azure/api-management/genai-gateway-capabilities`.
-- Local: o bloqueio vale para ferramentas que passem pelo gateway e pelo executor com a credencial do executor. Um servidor MCP remoto de terceiros, ou local ao runtime, fica fora.
-- Acção externa: depende do servidor. Se usar chave de API, o Entra não é envolvido e Conditional Access não se aplica (verificado).
-- Tecto hoje: `Unverified`. Tecto teórico, se vier a ser desenhado: `GatewayEnforced` limitado às ferramentas servidas pelo executor. Estado: `unknown`, ou `partial`.
+- Verified: APIM supports remote MCP servers and A2A APIs, and allows exposing REST APIs as MCP servers. Source: `https://learn.microsoft.com/en-us/azure/api-management/genai-gateway-capabilities`.
+- Local: the blocking holds for tools that go through the gateway and the executor with the executor's credential. A third-party remote MCP server, or one local to the runtime, stays outside.
+- External action: depends on the server. If it uses an API key, Entra is not involved and Conditional Access does not apply (verified).
+- Ceiling today: `Unverified`. Theoretical ceiling, if it is ever designed: `GatewayEnforced` limited to the tools served by the executor. State: `unknown`, or `partial`.
 
-### 5.4 Terceiros
+### 5.4 Third parties
 
-- Verificado: Conditional Access para workload identities não cobre "Microsoft and third-party SaaS applications, including multitenant apps". CAE para workload identities: "Third-party SaaS and multitenant apps are out of scope". Fontes: `https://learn.microsoft.com/en-us/entra/identity/conditional-access/workload-identity` e a página de CAE para workload identities.
-- Verificado: o acesso por chave de API contorna o pipeline Entra por completo.
-- Acção externa possível no tenant: desactivar o service principal local (âmbito de um só tenant), remover consentimentos e grants. Não alcança tokens ou chaves emitidos fora do tenant.
-- Tecto: `Unverified`. Estado: `partial` no melhor caso, `unknown` por omissão.
+- Verified: Conditional Access for workload identities does not cover "Microsoft and third-party SaaS applications, including multitenant apps". CAE for workload identities: "Third-party SaaS and multitenant apps are out of scope". Sources: `https://learn.microsoft.com/en-us/entra/identity/conditional-access/workload-identity` and the CAE page for workload identities.
+- Verified: access by API key bypasses the Entra pipeline entirely.
+- Possible external action in the tenant: disable the local service principal (single-tenant scope), remove consents and grants. It does not reach tokens or keys issued outside the tenant.
+- Ceiling: `Unverified`. State: `partial` at best, `unknown` by default.
 
-## 6. Tokens já emitidos: tempos documentados e lacunas
+## 6. Tokens already issued: documented times and gaps
 
-Todos os valores vêm da documentação e não foram medidos. As contradições entre páginas estão assinaladas. Usar o pior caso nas análises de risco.
+All values come from the documentation and were not measured. The contradictions between pages are flagged. Use the worst case in risk analyses.
 
-| Item | Tempo documentado | Fonte | Lacuna |
+| Item | Documented time | Source | Gap |
 | --- | --- | --- | --- |
-| Access token por omissão (APIs registadas) | 60 a 90 minutos, média 75. Outras páginas dizem "1 hour". Sem Conditional Access, Teams e Microsoft 365 têm 2 horas | `https://learn.microsoft.com/en-us/entra/identity-platform/configurable-token-lifetimes`, `https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens`, `https://learn.microsoft.com/en-us/entra/identity/users/users-revoke-access` | A página de `access-tokens` diz que o intervalo não se aplica a APIs da Microsoft, como o Graph. O valor para tokens do Graph não está garantido. Usar 90 minutos como pior caso sem CAE |
-| Access token de agent identity | NÃO VERIFICADO | nenhuma | Nenhuma página específica de agentes |
-| Tempo de vida configurável | Mínimo de 10 minutos, máximo de 23:59:59. Não suportado para managed identities. Não é respeitado em sessões CAE | `https://learn.microsoft.com/en-us/entra/identity-platform/configurable-token-lifetimes` | Aplicabilidade a agent identities não verificada |
-| Token CAE de utilizador | Até 28 horas (outras páginas: 24 a 28, 20 a 28) | `https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-continuous-access-evaluation` | Usar 28 horas como pior caso |
-| Eventos críticos de CAE para utilizadores | "latency of up to 15 minutes might be observed" | mesma página | Não prometer revogação instantânea |
-| Token CAE de workload identity | Até 24 horas | página de CAE para workload identities | Sem prazo numérico para a aplicação do evento de revogação |
-| Revogação de sessões de utilizador | Atraso de "a few minutes" para os refresh tokens. Não invalida access tokens | `https://learn.microsoft.com/en-us/graph/api/user-revokesigninsessions?view=graph-rest-1.0` | Aplicação ao agent user é inferência |
-| Desactivar application (`isDisabled`) | Tokens existentes válidos até expirar | `https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/deactivate-app-registration` | A mesma frase não está escrita para `accountEnabled` do service principal |
-| Managed identity | Cache de cerca de 24 horas. Sem refresh forçado. Tokens válidos depois de eliminar a identidade | FAQ de managed identities | Efeito sobre blueprint federado não verificado |
-| Alterações de permissões de managed identity | "several hours" | FAQ de managed identities | Sem valor máximo |
-| URL de download pré-autenticado do SharePoint | "within minutes" numa página, "1 hour" noutra. Remover permissões "might not immediately invalidate the URL" | `https://learn.microsoft.com/en-us/graph/api/driveitem-get-content?view=graph-rest-1.0`, `https://learn.microsoft.com/en-us/graph/api/resources/driveitem?view=graph-rest-1.0` | Usar 1 hora como pior caso. Cada URL emitido é uma credencial ao portador |
-| Revogação de grant Selected | "Application access is lost as soon as a scope is revoked." Sem valor numérico | `https://learn.microsoft.com/en-us/graph/permissions-selected-overview` | Tempo de propagação NÃO VERIFICADO. O efeito sobre um token já emitido que traz o scope é inferência (o recurso guarda o tuplo de aplicação, recurso e papel) |
-| Cache de RBAC for Applications (Exchange, fase posterior) | 30 minutos a 2 horas, conforme a utilização | `https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac` | O cmdlet de teste ignora a cache |
-| Sincronização de desprovisionamento de aplicações | Normalmente 20 a 40 minutos | `https://learn.microsoft.com/en-us/entra/identity/users/users-revoke-access` | Relevante só para aplicações com provisionamento |
+| Default access token (registered APIs) | 60 to 90 minutes, average 75. Other pages say "1 hour". Without Conditional Access, Teams and Microsoft 365 have 2 hours | `https://learn.microsoft.com/en-us/entra/identity-platform/configurable-token-lifetimes`, `https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens`, `https://learn.microsoft.com/en-us/entra/identity/users/users-revoke-access` | The `access-tokens` page says the range does not apply to Microsoft APIs, such as Graph. The value for Graph tokens is not guaranteed. Use 90 minutes as the worst case without CAE |
+| Agent identity access token | NOT VERIFIED | none | No agent-specific page |
+| Configurable lifetime | Minimum of 10 minutes, maximum of 23:59:59. Not supported for managed identities. Not respected in CAE sessions | `https://learn.microsoft.com/en-us/entra/identity-platform/configurable-token-lifetimes` | Applicability to agent identities not verified |
+| User CAE token | Up to 28 hours (other pages: 24 to 28, 20 to 28) | `https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-continuous-access-evaluation` | Use 28 hours as the worst case |
+| Critical CAE events for users | "latency of up to 15 minutes might be observed" | same page | Do not promise instant revocation |
+| Workload identity CAE token | Up to 24 hours | CAE page for workload identities | No numeric deadline for the enforcement of the revocation event |
+| Revocation of user sessions | Delay of "a few minutes" for refresh tokens. It does not invalidate access tokens | `https://learn.microsoft.com/en-us/graph/api/user-revokesigninsessions?view=graph-rest-1.0` | Application to the agent user is inference |
+| Disable application (`isDisabled`) | Existing tokens valid until they expire | `https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/deactivate-app-registration` | The same sentence is not written for `accountEnabled` of the service principal |
+| Managed identity | Cache of about 24 hours. No forced refresh. Tokens valid after the identity is deleted | Managed identities FAQ | Effect on federated blueprint not verified |
+| Managed identity permission changes | "several hours" | Managed identities FAQ | No maximum value |
+| SharePoint pre-authenticated download URL | "within minutes" on one page, "1 hour" on another. Removing permissions "might not immediately invalidate the URL" | `https://learn.microsoft.com/en-us/graph/api/driveitem-get-content?view=graph-rest-1.0`, `https://learn.microsoft.com/en-us/graph/api/resources/driveitem?view=graph-rest-1.0` | Use 1 hour as the worst case. Each URL issued is a bearer credential |
+| Revocation of a Selected grant | "Application access is lost as soon as a scope is revoked." No numeric value | `https://learn.microsoft.com/en-us/graph/permissions-selected-overview` | Propagation time NOT VERIFIED. The effect on an already issued token that carries the scope is inference (the resource stores the tuple of application, resource and role) |
+| RBAC for Applications cache (Exchange, later phase) | 30 minutes to 2 hours, depending on usage | `https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac` | The test cmdlet ignores the cache |
+| Application deprovisioning synchronisation | Normally 20 to 40 minutes | `https://learn.microsoft.com/en-us/entra/identity/users/users-revoke-access` | Relevant only for applications with provisioning |
 
-Conclusão verificada para a camada de contenção: desactivar uma identidade e bloquear a emissão não invalida os access tokens já emitidos. A única via documentada para revogar access tokens é a CAE, e só nas condições restritas acima. Por isso a prova de contenção assenta em sondas com token anterior (BT-14), executadas num recurso de teste, com o resultado real reportado.
+Verified conclusion for the containment layer: disabling an identity and blocking issuance does not invalidate access tokens already issued. The only documented way to revoke access tokens is CAE, and only under the restricted conditions above. For that reason the proof of containment rests on probes with a previous token (BT-14), executed on a test resource, with the real result reported.
 
-## 7. Caminhos alternativos a inventariar
+## 7. Alternative paths to inventory
 
-Cada caminho encontrado reduz a classificação até ser eliminado ou contido. Este quadro é a lista de inventário. O estado de cada item no tenant está por preencher (ver `environment-assessment.md`).
+Each path found lowers the classification until it is eliminated or contained. This table is the inventory list. The state of each item in the tenant is still to be filled in (see `environment-assessment.md`).
 
-| Caminho | Aplica-se a | Porque conta |
+| Path | Applies to | Why it counts |
 | --- | --- | --- |
-| Grants Selected ou amplos no próprio agente (`Sites.Read.All`, `Files.Read.All`, `Sites.ReadWrite.All`) | Todos | Um grant próprio é caminho directo. Revogar um scope de nível superior não remove acesso dado por um scope inferior |
-| Grants Selected em níveis inferiores (lista, item, ficheiro) | Todos | O acesso persiste depois de remover só o grant do site |
-| Credenciais do blueprint partilhadas por identidades irmãs | Entra Agent ID | Quem detém a credencial obtém tokens para qualquer agent identity do blueprint |
-| Agent user e fluxo OBO | Entra Agent ID | Sujeitos de token distintos. Política e desactivação da agent identity não os cobrem de forma documentada |
-| Managed identity user-assigned reutilizada entre runtimes | Managed identity, blueprint federado | Um runtime com âmbito diferente usa o mesmo sujeito de token |
-| Credencial Graph do executor acessível ao runtime do agente | Todos | Destrói a separação. O agente nunca recebe a credencial do executor |
-| URLs pré-autenticados já emitidos | Todos | Descarregam sem token até 1 hora. O executor não os devolve ao agente |
-| `$batch` e `/beta/$batch` | Todos | O pedido externo é sempre `POST`. Os métodos e caminhos reais vão no corpo (inferência) |
-| `$expand` e `$select` em metadados | Todos | `$expand=children` lista filhos. `@microsoft.graph.downloadUrl` entrega a capacidade de descarregar |
-| Pesquisa Graph (`/search/query`) | Todos | Comportamento com Selected NÃO VERIFICADO. Só há resposta de fórum a dizer que não respeita |
-| Acessos locais ao recurso (membros do site, links de partilha) | Todos | O acesso efectivo do utilizador em OBO e os links existentes não passam pelo gateway |
-| Chaves de API e segredos guardados no runtime | Todos | Contornam o Entra. Conditional Access não se aplica |
-| Azure RBAC atribuído à identidade | Agent ID, service principal, managed identity | O Azure RBAC pode continuar a aceitar o token até expirar |
-| Conectores, ferramentas MCP e Power Platform do agente | Fora do MVP | Podem ter ligação própria ao recurso |
-| Identidade do APIM e edição de políticas | Gateway | Quem edita políticas pode usar a managed identity do APIM e exportar o token. A credencial de dados fica no executor, não no APIM |
-| Sessões de utilizador abertas e refresh tokens | Agent user, OBO | `revokeSignInSessions` cobre refresh tokens, não access tokens |
-| Egress do runtime para o Graph | Todos | Egress restrito é defesa adicional e não substitui remover permissões (especificação, secção 5) |
+| Selected or broad grants on the agent itself (`Sites.Read.All`, `Files.Read.All`, `Sites.ReadWrite.All`) | All | A grant of its own is a direct path. Revoking a higher-level scope does not remove access given by a lower scope |
+| Selected grants at lower levels (list, item, file) | All | Access persists after removing only the site grant |
+| Blueprint credentials shared by sibling identities | Entra Agent ID | Whoever holds the credential obtains tokens for any agent identity of the blueprint |
+| Agent user and OBO flow | Entra Agent ID | Distinct token subjects. Policy and disabling of the agent identity do not cover them in a documented way |
+| User-assigned managed identity reused across runtimes | Managed identity, federated blueprint | A runtime with a different scope uses the same token subject |
+| Executor Graph credential accessible to the agent runtime | All | It destroys the separation. The agent never receives the executor's credential |
+| Pre-authenticated URLs already issued | All | They download without a token for up to 1 hour. The executor does not return them to the agent |
+| `$batch` and `/beta/$batch` | All | The external request is always `POST`. The real methods and paths go in the body (inference) |
+| `$expand` and `$select` on metadata | All | `$expand=children` lists children. `@microsoft.graph.downloadUrl` hands over the capability to download |
+| Graph search (`/search/query`) | All | Behaviour with Selected NOT VERIFIED. There is only a forum answer saying it does not respect it |
+| Local accesses to the resource (site members, sharing links) | All | The effective access of the user in OBO and the existing links do not go through the gateway |
+| API keys and secrets stored in the runtime | All | They bypass Entra. Conditional Access does not apply |
+| Azure RBAC assigned to the identity | Agent ID, service principal, managed identity | Azure RBAC may keep accepting the token until it expires |
+| Connectors, MCP tools and Power Platform of the agent | Outside the MVP | They may have their own connection to the resource |
+| APIM identity and policy editing | Gateway | Whoever edits policies can use the APIM managed identity and export the token. The data credential stays in the executor, not in APIM |
+| Open user sessions and refresh tokens | Agent user, OBO | `revokeSignInSessions` covers refresh tokens, not access tokens |
+| Runtime egress to Graph | All | Restricted egress is an additional defence and does not replace removing permissions (specification, section 5) |
 
-Limite estrutural verificado e inferido: não há documentação que permita restringir o Microsoft Graph a aceitar pedidos só de um APIM. Quem tiver um token Graph válido chama o Graph directamente. O que impede o contorno é o agente não possuir a credencial. Por isso a classificação `GatewayEnforced` depende de provar que o agente não tem credencial nem grant próprio, e não de regras de rede.
+Structural limit, verified and inferred: there is no documentation that allows restricting Microsoft Graph to accept requests only from an APIM. Whoever has a valid Graph token calls Graph directly. What prevents the bypass is that the agent does not possess the credential. For that reason the `GatewayEnforced` classification depends on proving that the agent has no credential and no grant of its own, and not on network rules.
 
-## 8. O que nunca se promete
+## 8. What is never promised
 
-Baseado nas secções 2 e 10 da especificação, e nas regras de honestidade da secção 0.
+Based on sections 2 and 10 of the specification, and on the honesty rules of section 0.
 
-- Ausência absoluta de falhas. A promessa é substituída por requisitos verificáveis, defesa em profundidade, ensaios de falha e limites explícitos.
-- "Acesso universal revogado". `verified_scoped` exige âmbito explícito e declara o recurso e as operações.
-- Revogação instantânea de todos os tokens. Os tokens já emitidos têm janelas documentadas ou não documentadas, e o produto mede-as, não as presume.
-- Conditional Access como revogação instantânea. Avalia-se na emissão e na renovação.
-- CAE como garantia universal. Depende do recurso, do cliente e da identidade.
-- Controlo de todos os agentes Copilot Studio, Foundry, MCP e de terceiros. Estão fora do MVP.
-- Eliminar dados já exfiltrados.
-- Cancelar universalmente operações já aceites por serviços externos. A revalidação não elimina a corrida com uma chamada já enviada ao Graph.
-- Rollback universal e exactly-once universal para efeitos Graph.
-- Converter `suspended` em `verified_scoped` automaticamente. Uma resposta 200, um dashboard verde ou uma demonstração com simulação não provam contenção.
-- Prazo universal de contenção externa. Mede-se por identidade e por recurso.
-- Cobertura de qualquer agente por Agent 365, Defender, Purview ou Sentinel, nem bloqueio síncrono de qualquer acção.
-- Que a ledger impeça uma entrada inicial falsa, garanta disponibilidade ou recupere dados adulterados. Dá evidência de adulteração mediante verificação.
-- Conformidade RGPD automática por usar serviços Microsoft.
-- Que o APIM transforme a governação de modelos em autorização fina de ferramentas.
+- Absolute absence of failures. The promise is replaced by verifiable requirements, defence in depth, failure rehearsals and explicit limits.
+- "Universal access revoked". `verified_scoped` requires explicit scope and declares the resource and the operations.
+- Instant revocation of all tokens. Tokens already issued have documented or undocumented windows, and the product measures them, it does not presume them.
+- Conditional Access as instant revocation. It is evaluated at issuance and at renewal.
+- CAE as a universal guarantee. It depends on the resource, the client and the identity.
+- Control of all Copilot Studio, Foundry, MCP and third-party agents. They are outside the MVP.
+- Deleting data already exfiltrated.
+- Universally cancelling operations already accepted by external services. Revalidation does not eliminate the race with a call already sent to Graph.
+- Universal rollback and universal exactly-once for Graph effects.
+- Converting `suspended` to `verified_scoped` automatically. A 200 response, a green dashboard or a demonstration with simulation do not prove containment.
+- A universal deadline for external containment. It is measured per identity and per resource.
+- Coverage of any agent by Agent 365, Defender, Purview or Sentinel, or synchronous blocking of any action.
+- That the ledger prevents a false initial entry, guarantees availability or recovers tampered data. It gives evidence of tampering through verification.
+- Automatic GDPR compliance from using Microsoft services.
+- That APIM turns model governance into fine-grained tool authorisation.
 
-## 9. Lacunas que limitam os tectos
+## 9. Gaps that limit the ceilings
 
-| Lacuna | Efeito | Como fechar |
+| Gap | Effect | How to close |
 | --- | --- | --- |
-| Destino dos tokens já emitidos a agent identities e a service principals fora da CAE | O tecto `verified_scoped` de Agent ID e service principal depende da sonda | Fase D, BT-14, recurso de teste |
-| CAE para agent identities | Sem ela, a janela pode ir até à expiração do token | Ler documentação futura. Teste em tenant |
-| Disable de managed identity | A contenção assenta em grants e runtime | L11 em `permission-matrix.md` |
-| Block no centro de administração Microsoft 365 contra `accountEnabled` | Dois interruptores sem relação documentada | L16 |
-| Efeito em cascata sobre agent user e OBO | Pode deixar sujeitos de token activos | L06 |
-| Inventário de caminhos alternativos no tenant | Sem ele a classificação é `Unverified` | Inventário na fase C |
-| Tempo de propagação da revogação de grants Selected | O passo "grant removido" não tem prazo | Medir na fase C |
-| Efeito da cache da managed identity sobre blueprint federado | Pode alargar a janela de revogação | Teste na fase D |
+| Outcome of tokens already issued to agent identities and to service principals outside CAE | The `verified_scoped` ceiling of Agent ID and service principal depends on the probe | Phase D, BT-14, test resource |
+| CAE for agent identities | Without it, the window can go up to the expiry of the token | Read future documentation. Test in tenant |
+| Managed identity disable | Containment rests on grants and runtime | L11 in `permission-matrix.md` |
+| Block in the Microsoft 365 admin centre versus `accountEnabled` | Two switches with no documented relationship | L16 |
+| Cascade effect on agent user and OBO | May leave token subjects active | L06 |
+| Inventory of alternative paths in the tenant | Without it the classification is `Unverified` | Inventory in phase C |
+| Propagation time of Selected grant revocation | The "grant removed" step has no deadline | Measure in phase C |
+| Effect of the managed identity cache on a federated blueprint | May widen the revocation window | Test in phase D |

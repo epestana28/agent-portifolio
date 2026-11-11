@@ -1,25 +1,25 @@
-# Contribuir
+# Contributing
 
-## Regras do projecto
+## Project rules
 
-1. Nada se afirma sobre o comportamento de serviços Microsoft sem uma página do Microsoft Learn e a data em que foi lida. O que não está verificado escreve-se "NÃO VERIFICADO".
-2. O que é simulado diz-se simulado, no código, nas respostas e nos documentos. Uma simulação nunca serve para esconder uma lacuna.
-3. Um passo de contenção só é `Verified` com uma leitura independente. Um timeout é `Unknown`.
-4. A auditoria usa o ledger do SQL Server. Não se acrescenta uma cadeia de hashes própria nem um emissor próprio de tokens.
-5. O executor só aceita operações da lista fechada. Não se acrescenta proxy genérico, `$batch` nem URL arbitrário.
+1. Nothing is stated about the behaviour of Microsoft services without a Microsoft Learn page and the date it was read. Anything that is not verified is written as "NOT VERIFIED".
+2. What is simulated is called simulated, in the code, in the responses and in the documents. A simulation never hides a gap.
+3. A containment step is only `Verified` after an independent read. A timeout is `Unknown`.
+4. Auditing uses the SQL Server ledger. Do not add a hash chain or a token issuer of your own.
+5. The executor only accepts operations from the closed list. Do not add a generic proxy, `$batch` or arbitrary URLs.
 
-## Como trabalhar
+## How to work
 
 ```bash
 dotnet build
 dotnet test
-eval "$(./scripts/sql-local-up.sh)" && dotnet test
+eval "$(./scripts/sql-local-up.sh)" && dotnet test   # includes the ledger tests
 ```
 
-Os avisos do compilador são erros. Uma alteração de comportamento traz um teste. Um teste que cobre um dos 20 testes bloqueantes usa o prefixo `BTnn_` no nome do método e é reflectido em `docs/test-plan.md`.
+Compiler warnings are errors. A change in behaviour comes with a test. A test that covers one of the 20 blocking tests uses the prefix `BTnn_` in the method name and is reflected in `docs/test-plan.md`.
 
-Uma decisão de arquitectura nova traz um ADR em `docs/adr`. As alterações visíveis entram em `CHANGELOG.md`.
+A new architecture decision comes with an ADR in `docs/adr`. User-visible changes go in `CHANGELOG.md`.
 
-## Mensagens de commit
+## Commit messages
 
-Formato `tipo(âmbito): descrição`, com os tipos `feat`, `fix`, `docs`, `test`, `chore`, `refactor` e `ci`.
+Format `type(scope): description`, with the types `feat`, `fix`, `docs`, `test`, `chore`, `refactor` and `ci`.

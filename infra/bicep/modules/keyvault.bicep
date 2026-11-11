@@ -1,37 +1,37 @@
-// Key Vault com autorização por RBAC e protecção contra purga.
+// Key Vault with RBAC authorisation and purge protection.
 //
-// O Key Vault serve apenas para exceções que exijam segredos. O desenho prefere identidades sem
-// segredo. Este módulo não coloca nenhum segredo no cofre e não atribui nenhum papel.
+// The Key Vault is only for exceptions that require secrets. The design prefers identities without
+// secrets. This module puts no secret in the vault and assigns no role.
 //
-// Verificado em Microsoft Learn a 2026-11-11:
+// Verified in Microsoft Learn on 2026-11-11:
 // https://learn.microsoft.com/en-us/azure/templates/microsoft.keyvault/2026-05-15/vaults
 //
-// ATENÇÃO, IRREVERSÍVEL: `enablePurgeProtection` não aceita `false` depois de activado, e
-// `enableSoftDelete` não volta a `false`. Um cofre apagado mantém o nome reservado durante o
-// período de retenção.
+// WARNING, IRREVERSIBLE: `enablePurgeProtection` does not accept `false` once enabled, and
+// `enableSoftDelete` does not go back to `false`. A deleted vault keeps its name reserved during
+// the retention period.
 
-@description('Região Azure.')
+@description('Azure region.')
 param location string
 
-@description('Prefixo de nomes, em minúsculas. O nome final tem sufixo derivado do grupo de recursos.')
+@description('Name prefix, in lowercase. The final name has a suffix derived from the resource group.')
 param namePrefix string
 
-@description('Identificador do tenant Entra.')
+@description('Entra tenant identifier.')
 param tenantId string
 
 @allowed([
   'standard'
   'premium'
 ])
-@description('Nível do cofre.')
+@description('Vault tier.')
 param skuName string = 'standard'
 
 @minValue(7)
 @maxValue(90)
-@description('Dias de retenção após eliminação (a página indica 7 a 90).')
+@description('Retention days after deletion (the page states 7 to 90).')
 param softDeleteRetentionInDays int = 90
 
-@description('Etiquetas comuns.')
+@description('Common tags.')
 param tags object = {}
 
 resource vault 'Microsoft.KeyVault/vaults@2026-05-15' = {
@@ -48,12 +48,12 @@ resource vault 'Microsoft.KeyVault/vaults@2026-05-15' = {
     enableSoftDelete: true
     softDeleteRetentionInDays: softDeleteRetentionInDays
     enablePurgeProtection: true
-    // POR VALIDAR: a página diz que `accessPolicies` é exigido salvo em createMode recover, mas
-    // não diz como isso se conjuga com `enableRbacAuthorization: true`. A lista vazia é a
-    // intenção (as políticas de acesso são ignoradas com RBAC). Confirmar que o deploy a aceita.
+    // TO VALIDATE: the page says `accessPolicies` is required except in createMode recover, but
+    // it does not say how that combines with `enableRbacAuthorization: true`. The empty list is the
+    // intention (access policies are ignored with RBAC). Confirm that the deployment accepts it.
     accessPolicies: []
-    // POR VALIDAR: `publicNetworkAccess` não é definido. Os valores aceites não foram enumerados
-    // na pesquisa. Decidir rede privada na Fase A.
+    // TO VALIDATE: `publicNetworkAccess` is not set. The accepted values were not enumerated in
+    // the research. Decide on a private network in Phase A.
   }
 }
 

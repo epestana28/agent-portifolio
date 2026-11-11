@@ -13,7 +13,7 @@ RUN for p in src/ControlApi/ControlApi.csproj:control src/PolicyExecutor/PolicyE
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 LABEL org.opencontainers.image.title="Agent Portifolio" \
-      org.opencontainers.image.description="Wallet de capacidades, autorização determinística, auditoria em ledger e contenção para agentes de IA. Adaptadores Microsoft em modo de simulação." \
+      org.opencontainers.image.description="Capability wallet, deterministic authorisation, ledger auditing and containment for AI agents. Microsoft adapters in simulation mode." \
       org.opencontainers.image.source="https://github.com/epestana28/agent-portifolio" \
       org.opencontainers.image.licenses="Apache-2.0"
 WORKDIR /app

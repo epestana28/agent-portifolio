@@ -1,21 +1,21 @@
-# Registo de decisões de arquitectura
+# Architecture decision log
 
-Todas as decisões estão em estado proposto. Nenhuma foi aprovada por um humano. A aprovação faz parte do gate da fase A.
+All decisions are in the proposed state. None has been approved by a human. Approval is part of the phase A gate.
 
-Formato de cada ADR: Contexto, Decisão, Consequências, Alternativas rejeitadas, Evidência documental (URL e data 2026-11-11) e Estado.
+Format of each ADR: Context, Decision, Consequences, Rejected alternatives, Documentary evidence (URL and date 2026-11-11) and Status.
 
-Estado real do projecto à data: a fase A são documentos escritos a partir de documentação oficial e sem tenant, e os campos que dependem do tenant ficam "POR PREENCHER NO TENANT". A fase B é uma fatia vertical local em .NET 8, sem credenciais reais, com o mundo Microsoft simulado. As fases C, D e E não foram executadas. O Bicep está escrito e nunca foi aplicado.
+Actual state of the project at this date: phase A is documents written from official documentation and without a tenant, and the fields that depend on the tenant remain "TO BE FILLED IN THE TENANT". Phase B is a local vertical slice in .NET 8, without real credentials, with the Microsoft world simulated. Phases C, D and E have not been executed. The Bicep is written and has never been applied.
 
-| ADR | Título | Estado |
+| ADR | Title | Status |
 |---|---|---|
-| [0001](0001-microsoft-first.md) | Microsoft-first | proposto |
-| [0002](0002-identidade-entra-agent-id-e-adaptadores.md) | Identidade com Entra Agent ID e adaptadores separados | proposto |
-| [0003](0003-capacidades-opacas-sem-segundo-oauth.md) | Capacidades opacas, sem segundo OAuth | proposto |
-| [0004](0004-sql-ledger-append-only-e-digests.md) | SQL Ledger append-only e digests | proposto |
-| [0005](0005-outbox-na-base-de-dados-e-service-bus.md) | Outbox na base de dados e Service Bus | proposto |
-| [0006](0006-sharepoint-selected-permissions.md) | SharePoint com Selected permissions | proposto |
-| [0007](0007-falha-fechada-sem-cache-positiva.md) | Falha fechada, sem cache positiva | proposto |
-| [0008](0008-estados-de-contencao-separados.md) | Estados de contenção separados | proposto |
-| [0009](0009-funcionalidades-preview.md) | Funcionalidades preview e alternativas documentadas | proposto |
+| [0001](0001-microsoft-first.md) | Microsoft-first | proposed |
+| [0002](0002-entra-agent-id-identity-and-adapters.md) | Identity with Entra Agent ID and separate adapters | proposed |
+| [0003](0003-opaque-capabilities-no-second-oauth.md) | Opaque capabilities, no second OAuth | proposed |
+| [0004](0004-sql-ledger-append-only-and-digests.md) | Append-only SQL Ledger and digests | proposed |
+| [0005](0005-database-outbox-and-service-bus.md) | Outbox in the database and Service Bus | proposed |
+| [0006](0006-sharepoint-selected-permissions.md) | SharePoint with Selected permissions | proposed |
+| [0007](0007-fail-closed-no-positive-cache.md) | Fail closed, no positive cache | proposed |
+| [0008](0008-separate-containment-states.md) | Separate containment states | proposed |
+| [0009](0009-preview-features.md) | Preview features and documented alternatives | proposed |
 
-Documentos relacionados: [threat-model.md](../threat-model.md), [gaps-and-assumptions.md](../gaps-and-assumptions.md), [risks.md](../risks.md) e [backlog.md](../backlog.md).
+Related documents: [threat-model.md](../threat-model.md), [gaps-and-assumptions.md](../gaps-and-assumptions.md), [risks.md](../risks.md) and [backlog.md](../backlog.md).

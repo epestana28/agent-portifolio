@@ -1,23 +1,23 @@
-// Identidades geridas atribuídas ao utilizador (user-assigned), uma por fronteira de privilégio.
+// User-assigned managed identities, one per privilege boundary.
 //
-// Regras de desenho:
-// - Uma identidade por serviço. Nunca reutilizar a mesma identidade entre serviços com âmbitos diferentes.
-// - A identidade da control-api NUNCA é atribuída ao runtime do agente. Este módulo não cria
-//   a identidade do runtime do agente: essa é criada à parte, sem qualquer acesso à base de dados
-//   de controlo, ao Service Bus ou ao Key Vault desta aplicação.
-// - A identidade que atribui o grant Selected no site SharePoint também fica fora deste módulo
-//   e é distinta da do policy-executor (ver README).
+// Design rules:
+// - One identity per service. Never reuse the same identity between services with different scopes.
+// - The identity of the control-api is NEVER assigned to the agent runtime. This module does not
+//   create the identity of the agent runtime: that one is created separately, with no access to the
+//   control database, the Service Bus or the Key Vault of this application.
+// - The identity that assigns the Selected grant on the SharePoint site also stays outside this
+//   module and is distinct from that of the policy-executor (see README).
 //
-// Tipo e apiVersion verificados em Microsoft Learn a 2026-11-11:
+// Type and apiVersion verified in Microsoft Learn on 2026-11-11:
 // https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/2024-11-30/userassignedidentities
 
-@description('Região Azure.')
+@description('Azure region.')
 param location string
 
-@description('Prefixo de nomes, em minúsculas.')
+@description('Name prefix, in lowercase.')
 param namePrefix string
 
-@description('Etiquetas comuns.')
+@description('Common tags.')
 param tags object = {}
 
 resource controlApi 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
@@ -38,9 +38,9 @@ resource containmentWorker 'Microsoft.ManagedIdentity/userAssignedIdentities@202
   tags: union(tags, { 'ap-service': 'worker' })
 }
 
-// POR VALIDAR: as propriedades só de leitura `principalId` e `clientId` não estão na tabela de
-// propriedades extraída na pesquisa (a tabela só lista name, location, tags e isolationScope).
-// Confirmar na página de referência antes de aplicar.
+// TO VALIDATE: the read-only properties `principalId` and `clientId` are not in the properties
+// table extracted in the research (the table only lists name, location, tags and isolationScope).
+// Confirm on the reference page before applying.
 output control object = {
   name: controlApi.name
   id: controlApi.id

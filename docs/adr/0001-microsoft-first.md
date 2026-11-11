@@ -1,60 +1,60 @@
 # ADR 0001: Microsoft-first
 
-Estado: proposto. Data de verificação das fontes: 2026-11-11.
+Status: proposed. Source verification date: 2026-11-11.
 
-## Contexto
+## Context
 
-O projecto constrói uma camada de controlo e evidência para agentes executados em Azure com acesso a Microsoft 365. A especificação manda aproveitar serviços Microsoft existentes antes de escrever componentes equivalentes (secção 3). Não é permitido criar criptomoeda, blockchain própria, emissor OAuth próprio nem sistema paralelo de identidade.
+The project builds a control and evidence layer for agents that run in Azure with access to Microsoft 365. The specification requires reusing existing Microsoft services before writing equivalent components (section 3). It is not permitted to create a cryptocurrency, a custom blockchain, a custom OAuth issuer or a parallel identity system.
 
-Estado real: a fase A foi escrita a partir de documentação oficial e sem tenant. A fase B (fatia local) está implementada com o mundo Microsoft simulado. As fases C, D e E não foram executadas, e não existe adaptador real para Entra nem para Graph.
+Actual state: phase A was written from official documentation and without a tenant. Phase B (local slice) is implemented with the Microsoft world simulated. Phases C, D and E have not been executed, and there is no real adapter for Entra or for Graph.
 
-## Decisão
+## Decision
 
-Cada necessidade usa primeiro o serviço Microsoft correspondente. O código próprio fica limitado ao que a Microsoft não cobre.
+Each need uses the corresponding Microsoft service first. Custom code is limited to what Microsoft does not cover.
 
-| Necessidade | Serviço Microsoft | Código próprio admitido |
+| Need | Microsoft service | Custom code allowed |
 |---|---|---|
-| Identidade de agente | Entra Agent ID, quando suportado | Adaptador e correlação |
-| Workloads existentes | Managed identities e service principals | Adaptadores separados |
-| Entrada governada | Azure API Management e políticas Entra | Validação de capacidades e recursos no executor |
-| Permissões SharePoint | Selected permissions | Orquestração de concessão e verificação |
-| Histórico verificável | Azure SQL Database Ledger | Esquema e eventos de domínio |
-| Digests independentes | Blob imutável, com Confidential Ledger como opção | Agendamento e verificação complementar |
-| Segredos | Key Vault | Nenhum cofre próprio |
-| Observabilidade | Azure Monitor e OpenTelemetry, Agent 365 quando licenciado | Instrumentação e correlação |
-| Infraestrutura | Bicep | Módulos do produto |
+| Agent identity | Entra Agent ID, where supported | Adapter and correlation |
+| Existing workloads | Managed identities and service principals | Separate adapters |
+| Governed entry | Azure API Management and Entra policies | Validation of capabilities and resources in the executor |
+| SharePoint permissions | Selected permissions | Orchestration of grants and verification |
+| Verifiable history | Azure SQL Database Ledger | Schema and domain events |
+| Independent digests | Immutable Blob, with Confidential Ledger as an option | Scheduling and complementary verification |
+| Secrets | Key Vault | No custom vault |
+| Observability | Azure Monitor and OpenTelemetry, Agent 365 when licensed | Instrumentation and correlation |
+| Infrastructure | Bicep | Product modules |
 
-O produto constrói a carteira, a autorização determinística, os estados de contenção e a evidência de domínio. Não constrói identidade, ledger, gateway, cofre nem emissor de tokens.
+The product builds the wallet, the deterministic authorisation, the containment states and the domain evidence. It does not build identity, ledger, gateway, vault or token issuer.
 
-Agent 365, Defender, Purview e Sentinel são complementos sujeitos a suporte e licenciamento. Não se presume cobertura de qualquer agente nem bloqueio síncrono de qualquer acção.
+Agent 365, Defender, Purview and Sentinel are add-ons subject to support and licensing. Coverage of any given agent, or synchronous blocking of any given action, is not assumed.
 
-## Consequências
+## Consequences
 
-- O projecto fica dependente de serviços Microsoft e das suas licenças. A contradição sobre a licença de Conditional Access para agentes fica por resolver no tenant (risco R-04).
-- Algumas funcionalidades relevantes estão em preview ou sem declaração de GA. Ver ADR 0009.
-- O APIM não transforma a governação de tráfego de modelos em autorização fina de operações Graph. Essa parte é código próprio.
-- Cada afirmação sobre a Microsoft tem de levar fonte e data. O que não está documentado fica marcado como NÃO VERIFICADO e não é suavizado.
-- O produto só pode ser validado em tenant. Até lá, as fases C e D ficam bloqueadas e o mundo Microsoft simulado não conta como prova.
+- The project depends on Microsoft services and their licences. The contradiction about the Conditional Access licence for agents remains unresolved in the tenant (risk R-04).
+- Some relevant features are in preview or without a GA statement. See ADR 0009.
+- APIM does not turn the governance of model traffic into fine-grained authorisation of Graph operations. That part is custom code.
+- Every claim about Microsoft must carry a source and a date. What is not documented stays marked as NOT VERIFIED and is not softened.
+- The product can only be validated in a tenant. Until then, phases C and D remain blocked and the simulated Microsoft world does not count as proof.
 
-## Alternativas rejeitadas
+## Rejected alternatives
 
-- Emissor de identidade ou de OAuth próprio: duplica o Entra e cria um segundo sistema de identidade, que a especificação proíbe.
-- Cadeia de hashes ou blockchain própria para a evidência: ver ADR 0004.
-- Gateway ou proxy de terceiros no lugar do APIM: não é Microsoft-first e não resolve a falta de autorização fina de operações Graph. Fica por justificar.
-- Conditional Access como mecanismo único de contenção: as políticas de agentes não alteram objectos, não impedem a criação de identidades, e não se aplicam a acessos que não passem pela emissão de tokens do Entra (por exemplo chave de API).
-- Esperar por um produto Microsoft que cubra tudo: a documentação lida não mostra capacidade de carteira de capacidades por agente, nem de ledger de revogação, nem de inspecção de `$batch` ou de redireccionamentos 302.
+- A custom identity or OAuth issuer: duplicates Entra and creates a second identity system, which the specification forbids.
+- A custom hash chain or blockchain for the evidence: see ADR 0004.
+- A third-party gateway or proxy in place of APIM: it is not Microsoft-first and does not solve the lack of fine-grained authorisation of Graph operations. Remains to be justified.
+- Conditional Access as the only containment mechanism: agent policies do not change objects, do not prevent the creation of identities, and do not apply to access that does not go through Entra token issuance (for example an API key).
+- Waiting for a Microsoft product that covers everything: the documentation read does not show a per-agent capability wallet, nor a revocation ledger, nor inspection of `$batch` or of 302 redirects.
 
-## Evidência documental
+## Documentary evidence
 
-Todas verificadas em 2026-11-11.
+All verified on 2026-11-11.
 
-- Agent ID: "available for all Microsoft Entra customers". Estado GA textual NÃO VERIFICADO. https://learn.microsoft.com/en-us/entra/agent-id/what-is-microsoft-entra-agent-id
-- Agent 365 em GA desde 2026-05-01, segmento Commercial, licença por utilizador. https://learn.microsoft.com/en-us/microsoft-agent-365/overview
-- O AI gateway do APIM "extends API Management's existing API gateway; it's not a separate offering", e governa tráfego de modelos e ferramentas MCP e A2A. A ausência de capacidade para semântica de Graph é inferência por ausência na página. https://learn.microsoft.com/en-us/azure/api-management/genai-gateway-capabilities
-- Conditional Access não se aplica a acesso por chave de API, que ignora a emissão de tokens do Entra. https://learn.microsoft.com/en-us/entra/identity/conditional-access/agent-id
-- Políticas de Conditional Access de âmbito tenant "doesn't prevent the creation of agent identities". https://learn.microsoft.com/en-us/entra/agent-id/disable-agent-identities
-- Licenciamento de Agent 365 e Conditional Access para agentes, com contradição entre páginas. https://learn.microsoft.com/en-us/entra/identity/conditional-access/agent-id e https://learn.microsoft.com/en-us/entra/agent-id/disable-agent-identities
+- Agent ID: "available for all Microsoft Entra customers". Literal GA status NOT VERIFIED. https://learn.microsoft.com/en-us/entra/agent-id/what-is-microsoft-entra-agent-id
+- Agent 365 in GA since 2026-05-01, Commercial segment, per-user licence. https://learn.microsoft.com/en-us/microsoft-agent-365/overview
+- The APIM AI gateway "extends API Management's existing API gateway; it's not a separate offering", and governs model traffic and MCP and A2A tools. The absence of capability for Graph semantics is an inference from absence on the page. https://learn.microsoft.com/en-us/azure/api-management/genai-gateway-capabilities
+- Conditional Access does not apply to API key access, which bypasses Entra token issuance. https://learn.microsoft.com/en-us/entra/identity/conditional-access/agent-id
+- Tenant-scoped Conditional Access policies "doesn't prevent the creation of agent identities". https://learn.microsoft.com/en-us/entra/agent-id/disable-agent-identities
+- Licensing of Agent 365 and Conditional Access for agents, with a contradiction between pages. https://learn.microsoft.com/en-us/entra/identity/conditional-access/agent-id and https://learn.microsoft.com/en-us/entra/agent-id/disable-agent-identities
 
-## Estado
+## Status
 
-Proposto. Aprovação humana por obter no gate da fase A.
+Proposed. Human approval still to be obtained at the phase A gate.

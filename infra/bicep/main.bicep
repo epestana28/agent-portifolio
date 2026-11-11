@@ -1,39 +1,39 @@
-// Agent Portifolio: ambiente Azure de TESTE (Fase C).
+// Agent Portifolio: Azure TEST environment (Phase C).
 //
-// ESTE BICEP NUNCA FOI APLICADO. Não existe subscrição. A sintaxe não foi validada por compilador.
-// Não aplicar antes de aprovados os gates da Fase A (âmbito, licenças e permissões) e de decididas
-// as escolhas irreversíveis listadas no README (isLedgerOn, retenção dos digests, protecção contra
-// purga do Key Vault, autenticação só Entra no SQL).
+// THIS BICEP HAS NEVER BEEN APPLIED. There is no subscription. The syntax has not been validated by
+// a compiler. Do not apply before the Phase A gates (scope, licences and permissions) are approved
+// and the irreversible choices listed in the README are decided (isLedgerOn, digest retention,
+// Key Vault purge protection, Entra-only authentication on SQL).
 //
-// Âmbito: grupo de recursos. O grupo de recursos é criado fora deste ficheiro.
+// Scope: resource group. The resource group is created outside this file.
 //
-// Tudo o que está marcado `POR VALIDAR` não foi verificado em Microsoft Learn na pesquisa de
-// 2026-11-11 (research/03). Não há valores inventados: o que não se sabe fica em comentário ou em
-// parâmetro sem valor por omissão.
+// Everything marked `TO VALIDATE` was not verified in Microsoft Learn in the research of
+// 2026-11-11 (research/03). There are no invented values: what is not known stays in a comment or
+// in a parameter with no default value.
 //
-// Não há segredos neste ficheiro nem nos módulos. Os parâmetros que seguem não têm valor por
-// omissão quando a escolha tem consequências de custo, segurança ou irreversibilidade.
+// There are no secrets in this file or in the modules. The parameters below have no default value
+// when the choice has consequences for cost, security or irreversibility.
 
 targetScope = 'resourceGroup'
 
-// ---------- Geral ----------
+// ---------- General ----------
 
 @minLength(3)
 @maxLength(9)
-@description('Prefixo de nomes: só letras minúsculas e dígitos, no máximo 9 caracteres (limite de 24 do nome da conta de armazenamento).')
+@description('Name prefix: lowercase letters and digits only, at most 9 characters (the storage account name has a limit of 24).')
 param namePrefix string
 
-@description('Região Azure. Por omissão, a do grupo de recursos.')
+@description('Azure region. By default, that of the resource group.')
 param location string = resourceGroup().location
 
-@description('Identificador do tenant Entra.')
+@description('Entra tenant identifier.')
 param tenantId string
 
 @minLength(1)
-@description('Object IDs dos administradores da plataforma. O primeiro é o administrador Entra do servidor SQL e deve ser um grupo. Os papéis dos restantes atribuem-se à mão (README).')
+@description('Object IDs of the platform administrators. The first is the Entra administrator of the SQL server and should be a group. The roles of the others are assigned by hand (README).')
 param adminObjectIds array
 
-@description('Nome (login) do administrador Entra do SQL, tal como aparece no directório.')
+@description('Name (login) of the SQL Entra administrator, as it appears in the directory.')
 param sqlAdminLogin string
 
 @allowed([
@@ -41,38 +41,38 @@ param sqlAdminLogin string
   'Group'
   'User'
 ])
-@description('Tipo do principal administrador do SQL.')
+@description('Type of the SQL administrator principal.')
 param sqlAdminPrincipalType string
 
-@description('Etiquetas comuns.')
+@description('Common tags.')
 param tags object = {}
 
-// ---------- Aplicações ----------
+// ---------- Applications ----------
 
-@description('Imagem do contentor (única, com os três serviços). Referência sem segredos.')
+@description('Container image (single, with the three services). Reference without secrets.')
 param containerImage string
 
-@description('Servidor do registo de contentores. Vazio se não for necessária identidade para puxar a imagem.')
+@description('Container registry server. Empty if no identity is needed to pull the image.')
 param registryServer string = ''
 
-@description('Porta em que a imagem escuta.')
+@description('Port the image listens on.')
 param targetPort int = 8080
 
-@description('Audiência esperada pela control-api (por exemplo o URI do ID da aplicação).')
+@description('Audience expected by the control-api (for example the application ID URI).')
 param controlApiAudience string
 
-@description('Audiência esperada pelo policy-executor.')
+@description('Audience expected by the policy-executor.')
 param executorAudience string
 
-@description('Modo dos adaptadores (Adapters__Mode). O código aceita só `Simulation` e qualquer outro valor impede o arranque. Não existe adaptador real para Entra ou Graph: não usar um valor que sugira o contrário.')
+@description('Adapters mode (Adapters__Mode). The code accepts only `Simulation` and any other value prevents startup. There is no real adapter for Entra or Graph: do not use a value that suggests otherwise.')
 param adaptersMode string
 
-// ---------- Base de dados e digests ----------
+// ---------- Database and digests ----------
 
-@description('Nome do SKU da base de dados. Sem valor por omissão (POR VALIDAR na referência).')
+@description('Database SKU name. No default value (TO VALIDATE in the reference).')
 param databaseSkuName string
 
-@description('Base de dados ledger (todas as tabelas são ledger). IRREVERSÍVEL.')
+@description('Ledger database (all tables are ledger tables). IRREVERSIBLE.')
 param isLedgerOn bool
 
 @allowed([
@@ -81,7 +81,7 @@ param isLedgerOn bool
   'Local'
   'Zone'
 ])
-@description('Redundância do armazenamento de cópias de segurança.')
+@description('Backup storage redundancy.')
 param backupStorageRedundancy string = 'Geo'
 
 @allowed([
@@ -90,30 +90,30 @@ param backupStorageRedundancy string = 'Geo'
   'Standard_RAGRS'
   'Standard_RAGZRS'
 ])
-@description('Redundância da conta de digests. LRS não é suportado para digests automáticos.')
+@description('Redundancy of the digests account. LRS is not supported for automatic digests.')
 param storageSkuName string
 
 @minValue(1)
 @maxValue(146000)
-@description('Retenção, em dias, da política de imutabilidade dos digests, antes do lock.')
+@description('Retention, in days, of the digests immutability policy, before the lock.')
 param digestImmutabilityDays int
 
-@description('Liga o upload automático de digests. Deixar falso no primeiro deploy: o papel de escrita do servidor SQL na conta é manual (README).')
+@description('Turns on the automatic digest upload. Leave false on the first deployment: the write role of the SQL server on the account is manual (README).')
 param enableLedgerDigestUpload bool = false
 
-// ---------- Service Bus, monitorização, Key Vault ----------
+// ---------- Service Bus, monitoring, Key Vault ----------
 
 @allowed([
   'Standard'
   'Premium'
 ])
-@description('Nível do Service Bus. Detecção de duplicados exige Standard ou Premium.')
+@description('Service Bus tier. Duplicate detection requires Standard or Premium.')
 param serviceBusSkuName string
 
-@description('Retenção dos registos do Log Analytics, em dias. Sem valor por omissão.')
+@description('Log Analytics log retention, in days. No default value.')
 param logRetentionInDays int
 
-@description('Limite diário de ingestão do Log Analytics em GB. 0 não define limite.')
+@description('Log Analytics daily ingestion limit in GB. 0 sets no limit.')
 param logDailyQuotaGb int = 0
 
 // ---------- APIM ----------
@@ -128,29 +128,30 @@ param logDailyQuotaGb int = 0
   'Standard'
   'StandardV2'
 ])
-@description('Nível do APIM. Sem valor por omissão.')
+@description('APIM tier. No default value.')
 param apimSkuName string
 
-@description('Unidades do SKU do APIM. Para Consumption tem de ser 0.')
+@description('APIM SKU units. For Consumption it must be 0.')
 param apimSkuCapacity int
 
-@description('Email do publicador do APIM.')
+@description('APIM publisher email.')
 param apimPublisherEmail string
 
-@description('Nome do publicador do APIM.')
+@description('APIM publisher name.')
 param apimPublisherName string
 
 @minLength(1)
-@description('appId das aplicações cliente autorizadas no gateway (identidades dos agentes).')
+@description('appId of the client applications authorised at the gateway (agent identities).')
 param executorClientApplicationIds array
 
-// ---------- Variáveis ----------
+// ---------- Variables ----------
 
-// O código usa o emissor declarado nos metadados desta autoridade (Auth__Authority). A versão do
-// emissor dos tokens reais é POR VALIDAR no tenant. `loginEndpoint` do ambiente termina em barra.
+// The code uses the issuer declared in the metadata of this authority (Auth__Authority). The version
+// of the issuer of the real tokens is TO VALIDATE in the tenant. The environment `loginEndpoint`
+// ends with a slash.
 var authAuthority = '${environment().authentication.loginEndpoint}${tenantId}/v2.0'
 
-// ---------- Módulos, pela ordem de dependência ----------
+// ---------- Modules, in dependency order ----------
 
 module monitoring 'modules/monitoring.bicep' = {
   name: 'ap-monitoring'
@@ -270,8 +271,8 @@ module apim 'modules/apim.bicep' = {
   }
 }
 
-// ---------- Saídas (sem segredos) ----------
-// Servem para os passos manuais do README: atribuições de papéis e utilizadores T-SQL.
+// ---------- Outputs (no secrets) ----------
+// They serve the manual steps in the README: role assignments and T-SQL users.
 
 output sqlServerName string = sql.outputs.serverName
 output sqlServerPrincipalId string = sql.outputs.serverPrincipalId

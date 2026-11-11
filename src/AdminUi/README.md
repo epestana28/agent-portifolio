@@ -1,38 +1,38 @@
 # AdminUi
 
-Esta pasta não tem código. A interface de administração está adiada. A interface é a Control API (`src/ControlApi`), usada por `curl` como nos runbooks.
+This folder has no code. The administration interface is postponed. The interface is the Control API (`src/ControlApi`), used through `curl` as in the runbooks.
 
-## Porquê adiada
+## Why it is postponed
 
-Uma interface gráfica só é segura se mostrar o que o sistema sabe e o que não sabe. Hoje o Microsoft é simulado e nenhuma contenção externa é real. Um ecrã verde por cima de uma simulação seria uma afirmação que o código não pode sustentar. A decisão é não esconder lacunas atrás de ecrãs: primeiro as provas das fases C e D, depois a interface.
+A graphical interface is only safe if it shows what the system knows and what it does not know. Today the Microsoft side is simulated and no external containment is real. A green screen on top of a simulation would be a claim that the code cannot support. The decision is not to hide gaps behind screens: first the evidence from phases C and D, then the interface.
 
-Não há prazo atribuído. Está listada em `docs/architecture.md`, secção "O que não existe ainda".
+No deadline has been set. It is listed in `docs/architecture.md`, section "What does not exist yet".
 
-## O que a interface teria de mostrar
+## What the interface would have to show
 
-Tudo vem da Control API. Nada disto exige dados novos.
+Everything comes from the Control API. None of this needs new data.
 
-1. Estado do agente e estado da contenção em separado. `Suspended` é o estado do agente. O estado da contenção (`LocalBlocked`, `ExternalPending`, `Partial`, `Failed`, `Unknown`, `VerifiedScoped`) é outra coisa e nunca se funde com o primeiro.
-2. Cada passo de contenção com o seu estado (`Requested`, `Executed`, `Verified`, `Failed`, `Unknown`), a `limitation`, as tentativas, a hora da última verificação e a evidência. `Executed` não é `Verified`.
-3. As incertezas (`uncertainties`) sempre visíveis, incluindo a que diz que tokens já emitidos podem continuar válidos até expirarem. Não podem estar escondidas num painel recolhido.
-4. O âmbito (`scope`) do que ficou verificado. `VerifiedScoped` só aparece com o âmbito escrito ao lado, nunca como "acesso revogado".
-5. As acções em curso no momento da suspensão (`inFlightActionIds`) e o destino de cada uma, com as `Unknown` em destaque.
-6. A cobertura do agente (`GatewayEnforced` ou `DirectAccessPossible`) e as constatações da última reconciliação, com a hora. Sem reconciliação recente, dizer que não há dados.
-7. Os grants externos registados, com `lastVerifiedAt`, e se a aprovação de uma reactivação está bloqueada por grants sem reverificação.
-8. O pedido de reactivação: quem pediu, e que o aprovador tem de ser outra pessoa.
-9. Um aviso permanente de que o modo de adaptadores é `Simulation`, enquanto for. O cabeçalho `X-AgentPortifolio-Simulation` do executor existe para isto.
-10. A auditoria por agente, só para o papel `Auditor`.
+1. Agent state and containment state, shown separately. `Suspended` is the state of the agent. The containment state (`LocalBlocked`, `ExternalPending`, `Partial`, `Failed`, `Unknown`, `VerifiedScoped`) is a different thing and is never merged with the first.
+2. Each containment step with its state (`Requested`, `Executed`, `Verified`, `Failed`, `Unknown`), the `limitation`, the attempts, the time of the last verification and the evidence. `Executed` is not `Verified`.
+3. The uncertainties (`uncertainties`), always visible, including the one that says tokens already issued may stay valid until they expire. They must not be hidden in a collapsed panel.
+4. The scope (`scope`) of what was verified. `VerifiedScoped` only appears with the scope written next to it, never as "access revoked".
+5. The actions in flight at the moment of suspension (`inFlightActionIds`) and the outcome of each one, with the `Unknown` ones highlighted.
+6. The coverage of the agent (`GatewayEnforced` or `DirectAccessPossible`) and the findings of the last reconciliation, with the time. Without a recent reconciliation, say that there is no data.
+7. The recorded external grants, with `lastVerifiedAt`, and whether the approval of a reactivation is blocked by grants without re-verification.
+8. The reactivation request: who requested it, and that the approver has to be a different person.
+9. A permanent warning that the adapter mode is `Simulation`, for as long as it is. The `X-AgentPortifolio-Simulation` header of the executor exists for this.
+10. The audit per agent, only for the `Auditor` role.
 
-## O que a interface nunca poderia dizer
+## What the interface could never say
 
-- "Revogado", "contido" ou "seguro" sem um passo `Verified` e o seu âmbito.
-- Que um token emitido antes da suspensão deixou de funcionar. O código não sabe, e a documentação lida também não o garante.
-- Que um estado está bom por falta de dados. Ausência de leitura é "desconhecido", não "ok".
-- Que `Suspended` implica contenção externa.
+- "Revoked", "contained" or "safe" without a `Verified` step and its scope.
+- That a token issued before the suspension has stopped working. The code does not know, and the documentation read does not guarantee it either.
+- That a state is good because of missing data. Absence of a reading is "unknown", not "ok".
+- That `Suspended` implies external containment.
 
-## Regras para quando for escrita
+## Rules for when it is written
 
-- Só chama a Control API. Não lê a base de dados e não tem credencial do executor.
-- Não guarda tokens nem conteúdo de documentos.
-- Mostra o erro tal como a API o devolve (código HTTP e o campo `error`, ou `reasonCode` no executor), sem o traduzir para uma mensagem mais simpática que altere o sentido.
-- Os papéis aplicam-se na API. A interface esconder um botão não é controlo de acesso.
+- It only calls the Control API. It does not read the database and has no executor credential.
+- It does not store tokens or document content.
+- It shows the error exactly as the API returns it (HTTP code and the `error` field, or `reasonCode` on the executor), without translating it into a friendlier message that changes the meaning.
+- Roles are enforced in the API. The interface hiding a button is not access control.

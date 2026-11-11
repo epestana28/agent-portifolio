@@ -1,52 +1,52 @@
-// Exemplo de ficheiro de parâmetros. Copiar para main.bicepparam e preencher.
-// O ficheiro real não entra no repositório (acrescentar ao .gitignore).
+// Example parameters file. Copy to main.bicepparam and fill in.
+// The real file does not go into the repository (add it to .gitignore).
 //
-// Todos os valores abaixo são marcadores. Nenhum é um valor real, nenhum é segredo.
-// Os parâmetros sem valor por omissão em main.bicep têm de ser decididos e preenchidos aqui.
-// Os valores marcados POR VALIDAR não estão confirmados na pesquisa de 2026-11-11.
+// All the values below are placeholders. None is a real value, none is a secret.
+// The parameters with no default value in main.bicep must be decided and filled in here.
+// The values marked TO VALIDATE are not confirmed in the research of 2026-11-11.
 
 using './main.bicep'
 
-// ---------- Geral ----------
-param namePrefix = 'apdemo'                                  // minúsculas e dígitos, máximo 9
-param tenantId = '00000000-0000-0000-0000-000000000000'     // POR PREENCHER NO TENANT
+// ---------- General ----------
+param namePrefix = 'apdemo'                                  // lowercase and digits, maximum 9
+param tenantId = '00000000-0000-0000-0000-000000000000'     // TO FILL IN FOR THE TENANT
 param adminObjectIds = [
-  '00000000-0000-0000-0000-000000000000'                    // POR PREENCHER NO TENANT: grupo Entra administrador do SQL
+  '00000000-0000-0000-0000-000000000000'                    // TO FILL IN FOR THE TENANT: Entra group that administers SQL
 ]
-param sqlAdminLogin = 'NOME-DO-GRUPO-ADMIN'                 // POR PREENCHER NO TENANT
+param sqlAdminLogin = 'ADMIN-GROUP-NAME'                      // TO FILL IN FOR THE TENANT
 param sqlAdminPrincipalType = 'Group'
 
-// ---------- Aplicações ----------
-param containerImage = 'REGISTO/IMAGEM:TAG'                 // POR PREENCHER: imagem única com os três serviços (AP_SERVICE escolhe qual corre). A do docker-compose.yml é ghcr.io/epestana28/agent-portifolio
-param registryServer = ''                                   // vazio se a imagem não exigir identidade para ser puxada
-param targetPort = 8080                                     // tem de coincidir com a porta da imagem
-param controlApiAudience = 'api://POR-PREENCHER-CONTROL'    // POR PREENCHER NO TENANT
-param executorAudience = 'api://POR-PREENCHER-EXECUTOR'     // POR PREENCHER NO TENANT
-param adaptersMode = 'Simulation'                            // único valor que o código aceita. Qualquer outro impede o arranque. Não existe adaptador real
+// ---------- Applications ----------
+param containerImage = 'REGISTRY/IMAGE:TAG'                  // TO FILL IN: single image with the three services (AP_SERVICE selects which one runs). The one in docker-compose.yml is ghcr.io/epestana28/agent-portifolio
+param registryServer = ''                                   // empty if the image does not require an identity to be pulled
+param targetPort = 8080                                     // must match the image port
+param controlApiAudience = 'api://TO-FILL-IN-CONTROL'        // TO FILL IN FOR THE TENANT
+param executorAudience = 'api://TO-FILL-IN-EXECUTOR'       // TO FILL IN FOR THE TENANT
+param adaptersMode = 'Simulation'                            // only value the code accepts. Any other prevents startup. There is no real adapter
 
-// ---------- Base de dados e digests ----------
-param databaseSkuName = 'GP_Gen5_2'                         // POR VALIDAR: só aparece como objectivo de serviço num exemplo T-SQL
-param isLedgerOn = false                                    // IRREVERSÍVEL. Decidir na Fase A (ver README)
+// ---------- Database and digests ----------
+param databaseSkuName = 'GP_Gen5_2'                         // TO VALIDATE: it only appears as a service objective in a T-SQL example
+param isLedgerOn = false                                    // IRREVERSIBLE. Decide in Phase A (see README)
 param backupStorageRedundancy = 'Geo'
-param storageSkuName = 'Standard_GRS'                       // LRS não é suportado para digests automáticos
-param digestImmutabilityDays = 1                            // SÓ PARA ENSAIO. A documentação avisa que 1 dia não serve para produção
-param enableLedgerDigestUpload = false                      // ligar só depois do papel de escrita do servidor SQL na conta (README)
+param storageSkuName = 'Standard_GRS'                       // LRS is not supported for automatic digests
+param digestImmutabilityDays = 1                            // FOR TESTING ONLY. The documentation warns that 1 day is not suitable for production
+param enableLedgerDigestUpload = false                      // turn on only after the write role of the SQL server on the account (README)
 
-// ---------- Service Bus, monitorização ----------
-param serviceBusSkuName = 'Standard'                        // POR VALIDAR: grafia exacta na referência
-param logRetentionInDays = 30                               // POR VALIDAR: valores aceites "per pricing plan"
-param logDailyQuotaGb = 0                                   // 0 não define limite
+// ---------- Service Bus, monitoring ----------
+param serviceBusSkuName = 'Standard'                        // TO VALIDATE: exact spelling in the reference
+param logRetentionInDays = 30                               // TO VALIDATE: accepted values "per pricing plan"
+param logDailyQuotaGb = 0                                   // 0 sets no limit
 
 // ---------- APIM ----------
-param apimSkuName = 'Developer'                             // decisão de custo e de rede da Fase A
-param apimSkuCapacity = 1                                   // para Consumption tem de ser 0
-param apimPublisherEmail = 'publicador@exemplo.invalid'     // POR PREENCHER
-param apimPublisherName = 'POR PREENCHER'
+param apimSkuName = 'Developer'                             // cost and network decision for Phase A
+param apimSkuCapacity = 1                                   // for Consumption it must be 0
+param apimPublisherEmail = 'publisher@example.invalid'       // TO FILL IN
+param apimPublisherName = 'TO FILL IN'
 param executorClientApplicationIds = [
-  '00000000-0000-0000-0000-000000000000'                    // POR PREENCHER NO TENANT: appId da identidade do agente
+  '00000000-0000-0000-0000-000000000000'                    // TO FILL IN FOR THE TENANT: appId of the agent identity
 ]
 
 param tags = {
-  projecto: 'agent-portifolio'
-  ambiente: 'teste'
+  project: 'agent-portifolio'
+  environment: 'test'
 }

@@ -2,44 +2,57 @@
 
 # Agent Portifolio
 
-Camada de controlo e de evidência para agentes de IA em Azure e Microsoft 365. Dá a cada agente uma carteira (wallet) de capacidades, decide cada acção de forma determinística, regista a decisão num ledger append-only e, num incidente, suspende o agente e diz com rigor o que ficou contido e o que não ficou.
+An open prototype of a control and evidence layer for AI agents on Azure and Microsoft 365. It gives each agent a wallet of capabilities, decides every action deterministically, records the decision in an append-only ledger and, during an incident, suspends the agent and states precisely what was contained and what was not.
 
-> **Estado: fatia vertical local, com o lado Microsoft em simulação.** O código de autorização, bloqueio, auditoria e orquestração da contenção é real e está testado, incluindo contra um SQL Server 2022 com ledger. Não existe ainda nenhum adaptador real para Entra, Graph ou SharePoint. Nada neste repositório é prova de como os serviços Microsoft se comportam. Ver [Estado por fase](#estado-por-fase).
+> **Status: local vertical slice, with the Microsoft side simulated.** The authorisation, blocking, audit and containment orchestration code is real and tested, including against a SQL Server 2022 ledger. There is no real adapter yet for Entra, Graph or SharePoint. Nothing in this repository is evidence of how Microsoft services behave. See [Status by phase](#status-by-phase).
 
-*English summary: a control and evidence layer for AI agents on Azure and Microsoft 365: capability wallet, deterministic authorisation, append-only SQL ledger audit, suspension and honest containment reporting. The Microsoft side is simulated today; the control logic is real and tested. Documentation is in Portuguese.*
+## The problem
 
-## O problema
+An AI agent with access to company data raises three questions that almost nobody can answer with evidence. What exactly can this agent do? What did it do? And if I suspend it now, what really stops working, and when?
 
-Um agente de IA com acesso a dados da empresa levanta três perguntas a que quase ninguém sabe responder com provas. O que pode este agente fazer, exactamente? O que fez? E, se o suspender agora, o que é que deixa mesmo de funcionar e quando?
+The third one is the hardest. Disabling an identity in Entra does not, by itself, invalidate tokens that were already issued. A dashboard that shows "revoked" after a successful administrative call is claiming something it has not verified.
 
-A terceira é a mais difícil. Desactivar uma identidade no Entra não invalida, por si só, os tokens já emitidos. Um painel que mostra "revogado" depois de uma chamada administrativa bem sucedida está a afirmar algo que não verificou.
+## What it does
 
-## O que faz
+- **Capability wallet.** Each agent has an owner, its own identity, a separate executor identity and a short list of capabilities: an action from a closed list, a resource in canonical form, an expiry. There are no wildcards.
+- **Deterministic authorisation.** The agent never talks to Graph. It asks the executor for an operation (`POST /actions`), which validates the token, resolves the operation against the closed list and decides in one transaction using the current state. There is no generic proxy, no `$batch` and no arbitrary URL.
+- **Fail-closed.** If the state store does not respond, the answer is `state_unavailable` and nothing is executed. Positive decisions are never cached.
+- **Ledger audit.** The decision, the intent and the audit event are written in the same transaction. With SQL Server or Azure SQL, the events go to an append-only ledger table of the engine itself. The project does not implement its own hash chain.
+- **Immediate suspension.** Suspending is a single transaction: state, revocation epoch increment, containment operation, outbox message and audit. The agent's next request is refused before any external step. An action that was already admitted is revalidated before the external call and cancelled.
+- **Containment with honest states.** Each external step (disable identity, remove grants, isolate runtime, probe issued tokens) ends in `Requested`, `Executed`, `Verified`, `Failed` or `Unknown`. The summary is only `VerifiedScoped` if every step was verified, and it always carries the list of uncertainties. A timeout is `Unknown`, never success.
+- **Two-person reactivation.** One person requests, another approves, the external grants must be revalidated after the suspension and the old capabilities stay dead (new epoch).
+- **Reconciliation.** It compares the grants that exist on the external side with the ones the wallet knows. A broad grant (for example `Sites.Read.All`) suspends the agent. A direct grant on the agent identity lowers the coverage to `DirectAccessPossible`.
 
-- **Carteira de capacidades.** Cada agente tem dono, identidade própria, identidade de executor separada e uma lista curta de capacidades: uma acção de uma lista fechada, um recurso em forma canónica, uma validade. Não há wildcards.
-- **Autorização determinística.** O agente nunca fala com o Graph. Pede uma operação ao executor (`POST /actions`), que valida o token, resolve a operação na lista fechada e decide numa transacção com o estado actual. Não há proxy genérico, nem `$batch`, nem URL arbitrário.
-- **Falha fechada.** Se a base de estado não responde, a resposta é `state_unavailable` e nada é executado. Não existe cache de decisões positivas.
-- **Auditoria em ledger.** A decisão, a intenção e o evento de auditoria são gravados na mesma transacção. Com SQL Server ou Azure SQL, os eventos vão para uma tabela ledger append-only do próprio motor. O projecto não implementa cadeia de hashes própria.
-- **Suspensão imediata.** Suspender é uma única transacção: estado, incremento do epoch de revogação, operação de contenção, mensagem na outbox e auditoria. O pedido seguinte do agente é recusado antes de qualquer passo externo. Uma acção já admitida é revalidada antes da chamada externa e cancelada.
-- **Contenção com estados honestos.** Cada passo externo (desactivar identidade, remover grants, isolar runtime, sondar tokens emitidos) fica em `Requested`, `Executed`, `Verified`, `Failed` ou `Unknown`. O resumo só é `VerifiedScoped` se todos os passos forem verificados, e traz sempre a lista de incertezas. Um timeout é `Unknown`, nunca sucesso.
-- **Reactivação a dois.** Uma pessoa pede, outra aprova, os grants externos têm de ser revalidados depois da suspensão e as capacidades antigas ficam mortas (epoch novo).
-- **Reconciliação.** Compara os grants que existem do lado externo com os que a carteira conhece. Um grant largo (por exemplo `Sites.Read.All`) suspende o agente. Um grant directo na identidade do agente baixa a cobertura para `DirectAccessPossible`.
+An [architecture diagram](docs/architecture-diagram.html) shows the three planes (control, data, worker) and the storage layer.
 
-## Experimentar em 2 minutos
+## Requirements
 
-Sem credenciais, sem tenant, num só processo:
+| What you want to do | What you need |
+|---|---|
+| Run the demo | Docker, or the .NET 8 SDK |
+| Run the local Docker stack (with SQL Server) | Docker with Compose, and `curl` |
+| Run the tests | The .NET 8 SDK |
+| Run the tests including the SQL Server ledger tests | The .NET 8 SDK and Docker (for `scripts/sql-local-up.sh`) |
+| Validate real Entra tokens | An Entra tenant with two app registrations (see below) |
+| Contribute | Git, the .NET 8 SDK and Docker |
+
+No Azure or Microsoft 365 credentials are needed for anything except the Entra token validation mode. Step-by-step instructions are in [GETTING_STARTED.md](GETTING_STARTED.md).
+
+## Try it in 2 minutes
+
+No credentials, no tenant, one process:
 
 ```bash
 docker run --rm ghcr.io/epestana28/agent-portifolio:latest demo
 ```
 
-Ou, com o .NET 8 SDK: `dotnet run --project samples/LocalSlice`.
+Or, with the .NET 8 SDK: `dotnet run --project samples/LocalSlice`.
 
-A demonstração percorre registo, aprovação a dois, capacidade, leitura, recusas, suspensão, contenção, reactivação e mostra o registo de auditoria.
+The demo walks through registration, two-person approval, capability, read, refusals, suspension, containment and reactivation, and prints the audit log.
 
-## Pilha local com Docker
+## Local stack with Docker
 
-Sobe SQL Server 2022 (com ledger), a API de controlo, o executor e o worker de contenção, e percorre o fluxo todo por HTTP:
+It starts SQL Server 2022 (with ledger), the control API, the executor and the containment worker, and runs the whole flow over HTTP:
 
 ```bash
 git clone https://github.com/epestana28/agent-portifolio.git
@@ -47,90 +60,92 @@ cd agent-portifolio
 ./scripts/quickstart.sh
 ```
 
-O script cria um `.env` com valores aleatórios, faz `docker compose up -d`, emite tokens de desenvolvimento e mostra cada resposta. Precisa de `docker` (com compose) e `curl`. A API de controlo fica em `127.0.0.1:8081` e o executor em `127.0.0.1:8082`.
+The script creates a `.env` with random values, runs `docker compose up -d`, issues development tokens and shows every response. It needs `docker` (with compose) and `curl`. The control API listens on `127.0.0.1:8081` and the executor on `127.0.0.1:8082`.
 
-A mesma imagem contém os três serviços e duas ferramentas. A variável `AP_SERVICE` (ou o primeiro argumento) escolhe: `control`, `executor`, `worker`, `demo`, `devtoken`.
+The same image contains the three services and two tools. The `AP_SERVICE` variable (or the first argument) selects one: `control`, `executor`, `worker`, `demo`, `devtoken`.
 
-### Usar com a sua conta Microsoft Entra
+### Use it with your own Microsoft Entra tenant
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.entra.yml up -d
 ```
 
-Com `AP_TENANT_ID` no `.env`, os dois serviços passam a validar tokens reais do seu tenant: assinatura, emissor, audiência, validade e tenant. Precisa de dois registos de aplicação com as audiências `api://agent-portifolio-control` e `api://agent-portifolio-executor`, e dos papéis de aplicação `AgentPortifolio.Reader`, `AgentPortifolio.IncidentOperator`, `AgentPortifolio.PolicyAdmin` e `AgentPortifolio.Auditor` no primeiro.
+With `AP_TENANT_ID` in the `.env`, both services start validating real tokens from your tenant: signature, issuer, audience, expiry and tenant. You need two app registrations with the audiences `api://agent-portifolio-control` and `api://agent-portifolio-executor`, and the app roles `AgentPortifolio.Reader`, `AgentPortifolio.IncidentOperator`, `AgentPortifolio.PolicyAdmin` and `AgentPortifolio.Auditor` on the first one.
 
-O que passa a ser real neste modo: a validação dos tokens, a carteira, as decisões, o bloqueio e o ledger. O que continua simulado: tudo o que seria uma chamada ao Entra, ao Graph ou ao SharePoint. O serviço recusa arrancar com `Adapters__Mode` diferente de `Simulation`, para não fingir uma integração que não existe. Este modo não foi exercitado contra um tenant real pelo autor.
+What becomes real in this mode: token validation, the wallet, the decisions, the blocking and the ledger. What stays simulated: everything that would be a call to Entra, Graph or SharePoint. The service refuses to start with `Adapters__Mode` other than `Simulation`, so it never pretends to have an integration that does not exist. This mode has not been exercised against a real tenant by the author.
 
-### Limites da simulação na pilha Docker
+### Limits of the simulation in the Docker stack
 
-Cada contentor tem o seu próprio ambiente simulado, em memória. O worker de contenção não conhece tokens nem identidades simulados pelos outros processos, pelo que os seus passos dão `Verified` de forma trivial e o relatório aparece como `VerifiedScoped`. O campo `evidence` de cada passo começa por `simulated:`. Para ver a simulação a recusar-se a declarar verificado o que não sondou, use a demonstração num só processo, onde o resumo fica `Partial`.
+Each container has its own simulated environment, in memory. The containment worker does not know the tokens or identities simulated by the other processes, so its steps come back `Verified` trivially and the report shows `VerifiedScoped`. The `evidence` field of every step starts with `simulated:`. To see the simulation refuse to declare verified what it did not probe, use the single-process demo, where the summary ends up `Partial`.
 
-## Configuração
+## Configuration
 
-| Variável | Valores | Notas |
+| Variable | Values | Notes |
 |---|---|---|
-| `AP_SERVICE` | `control`, `executor`, `worker`, `demo`, `devtoken` | Processo a correr na imagem. |
-| `Auth__Mode` | `Entra`, `Development` | Obrigatório. Sem valor, o serviço não arranca. |
-| `Auth__Authority` | URL do emissor | Só em modo `Entra`. |
-| `Auth__Audience` | audiência esperada | Por omissão, a do serviço. |
-| `Auth__AllowedTenants__0` | GUID do tenant | Obrigatório. Lista vazia é recusada. |
-| `Auth__DevSigningKey` | 32 bytes ou mais | Só em modo `Development`. |
-| `Storage__Provider` | `SqlServer`, `InMemory` | Obrigatório. |
-| `Storage__ConnectionString` | connection string | Só com `SqlServer`. |
-| `Storage__CreateDatabase` | `true`, `false` | Cria a base se não existir. Só para a pilha local. |
-| `Adapters__Mode` | `Simulation` | Único modo existente. |
+| `AP_SERVICE` | `control`, `executor`, `worker`, `demo`, `devtoken` | Process to run in the image. |
+| `Auth__Mode` | `Entra`, `Development` | Required. The service does not start without it. |
+| `Auth__Authority` | Issuer URL | `Entra` mode only. |
+| `Auth__Audience` | Expected audience | Defaults to the service's own audience. |
+| `Auth__AllowedTenants__0` | Tenant GUID | Required. An empty list is rejected. |
+| `Auth__DevSigningKey` | 32 bytes or more | `Development` mode only. `scripts/quickstart.sh` generates one. |
+| `Storage__Provider` | `SqlServer`, `InMemory` | Required. |
+| `Storage__ConnectionString` | Connection string | `SqlServer` only. |
+| `Storage__CreateDatabase` | `true`, `false` | Creates the database if it does not exist. Local stack only. |
+| `Adapters__Mode` | `Simulation` | The only mode that exists. |
+| `AP_TEST_SQL` | Connection string | Used by `dotnet test`. If set, the SQL Server ledger tests run. If empty, they are skipped and reported as skipped, never as failures. |
 
-## Testes
+## Tests
 
 ```bash
 dotnet test
 ```
 
-Em 2026-11-11: 78 testes, 78 passam, com `AP_TEST_SQL` a apontar para um SQL Server 2022 em contentor (`eval "$(./scripts/sql-local-up.sh)"`). Sem essa variável, 73 passam e os 5 testes de SQL ficam marcados como ignorados. Os testes de SQL provam contra o motor real que a tabela ledger rejeita `UPDATE`, `DELETE` e `TRUNCATE`, que a verificação com o digest passa e que um digest errado é detectado.
+On 2026-11-11: 78 tests, 78 pass, with `AP_TEST_SQL` pointing to a SQL Server 2022 container (`eval "$(./scripts/sql-local-up.sh)"`). Without that variable, 73 pass and the 5 SQL tests are reported as skipped. The SQL tests prove against the real engine that the ledger table rejects `UPDATE`, `DELETE` and `TRUNCATE`, that verification with the digest passes and that a wrong digest is detected.
 
-A especificação define 20 testes bloqueantes (BT-01 a BT-20). O estado de cada um, com os nomes dos testes que o cobrem e o que falta para ser prova real, está em [docs/test-plan.md](docs/test-plan.md). Seis deles não têm ainda prova real: três estão cobertos só em simulação e três só podem ser provados num tenant, nas fases C e D.
+The specification defines 20 blocking tests (BT-01 to BT-20). The status of each one, with the names of the tests that cover it and what is missing to make it real evidence, is in [docs/test-plan.md](docs/test-plan.md). Six of them do not have real evidence yet: three are covered in simulation only and three can only be proven on a tenant, in phases C and D.
 
-## Estado por fase
+## Status by phase
 
-| Fase | Conteúdo | Estado |
+| Phase | Content | Status |
 |---|---|---|
-| A | Avaliação do ambiente, arquitectura, modelo de ameaças, matriz de permissões, plano de testes, custos | Documentos escritos a partir da documentação oficial. Todas as linhas da matriz de permissões estão por confirmar num tenant. |
-| B | Fatia vertical local sem credenciais | Feita e testada. |
-| C | Piloto de leitura num tenant de teste | Por fazer. Bloqueada até aprovação dos gates da fase A. |
-| D | Contenção real e medição de tempos | Por fazer. |
-| E | Endurecimento e operação | Por fazer. O Bicep em `infra/bicep` nunca foi compilado nem implantado. |
+| A | Environment assessment, architecture, threat model, permission matrix, test plan, costs | Documents written from the official documentation. Every row of the permission matrix is still to be confirmed on a tenant. |
+| B | Local vertical slice without credentials | Done and tested. |
+| C | Read pilot on a test tenant | Not started. Blocked until the phase A gates are approved. |
+| D | Real containment and timing measurements | Not started. |
+| E | Hardening and operation | Not started. The Bicep in `infra/bicep` has never been compiled or deployed. |
 
-## Documentação
+## Documentation
 
-- [Arquitectura](docs/architecture.md) e [decisões (ADR)](docs/adr/README.md)
-- [Avaliação do ambiente](docs/environment-assessment.md), com o que a documentação Microsoft confirma e o que não confirma
-- [Modelo de ameaças](docs/threat-model.md), [riscos](docs/risks.md), [lacunas e pressupostos](docs/gaps-and-assumptions.md)
-- [Matriz de permissões](docs/permission-matrix.md) e [matriz de cobertura](docs/coverage-matrix.md)
-- [Plano de testes](docs/test-plan.md), [estimativa de custos](docs/cost-estimate.md), [backlog](docs/backlog.md)
-- [Runbooks](runbooks/README.md) e [infra-estrutura como código](infra/bicep/README.md)
+- [Architecture](docs/architecture.md), the [architecture diagram](docs/architecture-diagram.html) and the [decisions (ADR)](docs/adr/README.md)
+- [Environment assessment](docs/environment-assessment.md), with what the Microsoft documentation confirms and what it does not
+- [Threat model](docs/threat-model.md), [risks](docs/risks.md), [gaps and assumptions](docs/gaps-and-assumptions.md)
+- [Permission matrix](docs/permission-matrix.md) and [coverage matrix](docs/coverage-matrix.md)
+- [Test plan](docs/test-plan.md), [cost estimate](docs/cost-estimate.md), [backlog](docs/backlog.md)
+- [Runbooks](runbooks/README.md) and [infrastructure as code](infra/bicep/README.md)
+- [Getting started](GETTING_STARTED.md), [contributing](CONTRIBUTING.md) and [security policy](SECURITY.md)
 
-## Estrutura
+## Structure
 
 ```
-src/Core               domínio, motor de autorização, serviços, portas
-src/Storage.SqlServer  armazenamento transaccional e esquema com ledger
-src/Simulation         lado Microsoft simulado, com injecção de falhas
-src/Hosting            autenticação, configuração e composição comuns
-src/ControlApi         plano de controlo, para operadores
-src/PolicyExecutor     plano de dados, o único ponto que o agente alcança
-src/ContainmentWorker  contenção externa, lê a outbox
-src/AdminUi            adiada
-samples/LocalSlice     demonstração num só processo
-tools/DevToken         tokens de desenvolvimento para a pilha local
+src/Core               domain, authorisation engine, services, ports
+src/Storage.SqlServer  transactional storage and ledger schema
+src/Simulation         simulated Microsoft side, with fault injection
+src/Hosting            shared authentication, configuration and composition
+src/ControlApi         control plane, for operators
+src/PolicyExecutor     data plane, the only point the agent can reach
+src/ContainmentWorker  external containment, reads the outbox
+src/AdminUi            deferred
+samples/LocalSlice     single-process demo
+tools/DevToken         development tokens for the local stack
 tests/                 Unit, Integration, Security, FailureInjection
-infra/bicep            esboço de infra-estrutura, não validado
-runbooks/              procedimentos de operação
+infra/bicep            infrastructure sketch, not validated
+runbooks/              operating procedures
 ```
 
-## Sobre o nome
+## About the name
 
-"Portifolio" é a grafia escolhida para o projecto e é usada de propósito no repositório, nos namespaces e na imagem.
+"Portifolio" is the spelling chosen for the project and it is used on purpose in the repository, the namespaces and the image.
 
-## Licença
+## Licence
 
-Apache-2.0. Ver [LICENSE](LICENSE).
+Apache-2.0. See [LICENSE](LICENSE).

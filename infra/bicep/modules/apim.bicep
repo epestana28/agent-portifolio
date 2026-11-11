@@ -1,61 +1,63 @@
-// Instância APIM e uma API para o policy-executor, com a política validate-azure-ad-token.
+// APIM instance and an API for the policy-executor, with the validate-azure-ad-token policy.
 //
-// O APIM é a entrada governada do agente. Não é o controlo de acesso aos dados: o Microsoft Graph é
-// um serviço público e nenhum mecanismo de rede aplicável ao APIM impede quem tem um token Graph de
-// chamar o Graph directamente. O que impede o contorno é o agente nunca possuir a credencial Graph,
-// que fica só no policy-executor. O executor também valida o token, porque a configuração do
-// gateway pode mudar e os tokens podem ser reutilizados.
+// APIM is the governed entry point for the agent. It is not the access control for the data:
+// Microsoft Graph is a public service and no network mechanism applicable to APIM stops whoever
+// holds a Graph token from calling Graph directly. What prevents the bypass is that the agent never
+// holds the Graph credential, which stays only in the policy-executor. The executor also validates
+// the token, because the gateway configuration can change and tokens can be reused.
 //
-// Verificado em Microsoft Learn a 2026-11-11:
+// Verified in Microsoft Learn on 2026-11-11:
 // https://learn.microsoft.com/en-us/azure/templates/microsoft.apimanagement/2024-05-01/service
 // https://learn.microsoft.com/en-us/azure/api-management/validate-azure-ad-token-policy
 // https://learn.microsoft.com/en-us/azure/api-management/genai-gateway-capabilities
 //
-// A política (policies/executor-inbound.xml) usa apenas atributos transcritos na pesquisa:
-//   tenant-id (obrigatório), failed-validation-httpcode, failed-validation-error-message,
-//   e os elementos client-application-ids e audiences.
-// O único atributo obrigatório é tenant-id. Uma política só com ele aceitaria qualquer token válido
-// do tenant, para qualquer audiência. Por isso a política exige audiência e lista fechada de
-// aplicações cliente.
+// The policy (policies/executor-inbound.xml) uses only attributes transcribed in the research:
+//   tenant-id (required), failed-validation-httpcode, failed-validation-error-message,
+//   and the client-application-ids and audiences elements.
+// The only required attribute is tenant-id. A policy with only that would accept any valid token
+// from the tenant, for any audience. That is why the policy requires an audience and a closed list
+// of client applications.
 //
-// POR VALIDAR antes de aplicar:
-// - os tipos `Microsoft.ApiManagement/service/apis` e `.../apis/policies` e as suas propriedades
-//   (displayName, path, protocols, serviceUrl, subscriptionRequired, format, value) NÃO constam da
-//   tabela de tipos verificada. Foi pedido o recurso, por isso está escrito, mas todas as
-//   propriedades abaixo são POR VALIDAR na referência;
-// - nomes dos elementos folha (application-id, audience) e ordem dos filhos dentro de
-//   validate-azure-ad-token: a pesquisa só transcreveu os nomes dos elementos pai. Confirmar na
-//   página da política ("Set the policy's elements and child elements in the order provided in the
-//   policy statement");
-// - `authentication-endpoint` não é definido: a predefinição aparece na página com um erro
-//   tipográfico provável (login-microsoftonline.com). Não usar esse valor;
-// - a política só valida o token. Não bloqueia $batch, não valida o corpo, não trata o 302 para URL
-//   pré-autenticado. O executor aplica a allowlist (a API deve expor só POST /actions);
-// - autenticação do APIM para o backend (política authentication-managed-identity, verificada na
-//   pesquisa mas sem atributos transcritos): NÃO configurada. Quem edita políticas APIM pode usar a
-//   managed identity do serviço, e o APIM não valida para que backend o token é enviado. Por isso a
-//   credencial de dados nunca é a identidade do APIM;
-// - rede: sem rede virtual nem private endpoint. O APIM não é a defesa contra contorno do Graph;
-// - chaves de subscrição não são identidade: `subscriptionRequired` fica falso e a autenticação é
-//   só o token Entra.
+// TO VALIDATE before applying:
+// - the types `Microsoft.ApiManagement/service/apis` and `.../apis/policies` and their properties
+//   (displayName, path, protocols, serviceUrl, subscriptionRequired, format, value) are NOT in the
+//   verified type table. The resource was requested, so it is written, but all the properties
+//   below are TO VALIDATE in the reference;
+// - names of the leaf elements (application-id, audience) and order of the children inside
+//   validate-azure-ad-token: the research only transcribed the names of the parent elements.
+//   Confirm on the policy page ("Set the policy's elements and child elements in the order
+//   provided in the policy statement");
+// - `authentication-endpoint` is not set: the default appears on the page with a probable typo
+//   (login-microsoftonline.com). Do not use that value;
+// - the policy only validates the token. It does not block $batch, does not validate the body, and
+//   does not handle the 302 to a pre-authenticated URL. The executor applies the allowlist (the API
+//   must expose only POST /actions);
+// - APIM authentication to the backend (authentication-managed-identity policy, verified in the
+//   research but without transcribed attributes): NOT configured. Whoever edits APIM policies can
+//   use the managed identity of the service, and APIM does not validate which backend the token is
+//   sent to. That is why the data credential is never the APIM identity;
+// - network: no virtual network and no private endpoint. APIM is not the defence against bypassing
+//   Graph;
+// - subscription keys are not identity: `subscriptionRequired` stays false and authentication is
+//   only the Entra token.
 
-@description('Região Azure.')
+@description('Azure region.')
 param location string
 
-@description('Prefixo de nomes, em minúsculas.')
+@description('Name prefix, in lower case.')
 param namePrefix string
 
-@description('Identificador do tenant Entra.')
+@description('Entra tenant identifier.')
 param tenantId string
 
-@description('Email do publicador (obrigatório, máximo de 100 caracteres).')
+@description('Publisher email (required, maximum of 100 characters).')
 param publisherEmail string
 
-@description('Nome do publicador (obrigatório, máximo de 100 caracteres).')
+@description('Publisher name (required, maximum of 100 characters).')
 param publisherName string
 
-// Lista de `sku.name` da referência. Sem valor por omissão: o nível é decisão de custo e de rede da
-// Fase A. A natureza do custo por nível não foi verificada em Learn.
+// List of `sku.name` from the reference. No default value: the tier is a cost and network decision
+// for Phase A. The nature of the cost per tier was not verified in Learn.
 @allowed([
   'Basic'
   'BasicV2'
@@ -66,23 +68,23 @@ param publisherName string
   'Standard'
   'StandardV2'
 ])
-@description('Nível do APIM.')
+@description('APIM tier.')
 param skuName string
 
-@description('Unidades do SKU. Para Consumption tem de ser 0.')
+@description('SKU units. For Consumption it must be 0.')
 param skuCapacity int
 
-@description('URL base (https) do policy-executor, sem barra final.')
+@description('Base URL (https) of the policy-executor, without a trailing slash.')
 param executorBackendUrl string
 
-@description('Audiência esperada nos tokens para o executor.')
+@description('Audience expected in the tokens for the executor.')
 param executorAudience string
 
 @minLength(1)
-@description('appId das aplicações cliente autorizadas a chamar o gateway (identidades dos agentes).')
+@description('appId of the client applications authorised to call the gateway (agent identities).')
 param executorClientApplicationIds array
 
-@description('Etiquetas comuns.')
+@description('Common tags.')
 param tags object = {}
 
 var clientIdsXml = join(map(executorClientApplicationIds, id => '<application-id>${id}</application-id>'), '')
@@ -117,8 +119,8 @@ resource executorApi 'Microsoft.ApiManagement/service/apis@2024-05-01' = {
   }
 }
 
-// POR VALIDAR: operação única, para que o gateway exponha só POST /actions. Está em comentário
-// porque `Microsoft.ApiManagement/service/apis/operations` não consta da tabela verificada.
+// TO VALIDATE: single operation, so that the gateway exposes only POST /actions. It is commented
+// out because `Microsoft.ApiManagement/service/apis/operations` is not in the verified table.
 // resource actionsOperation 'Microsoft.ApiManagement/service/apis/operations@2024-05-01' = {
 //   parent: executorApi
 //   name: 'post-actions'
