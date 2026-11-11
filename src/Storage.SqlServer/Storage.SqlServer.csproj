@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" />
+    <ProjectReference Include="..\Core\Core.csproj" />
+    <EmbeddedResource Include="Schema\001_schema.sql" LogicalName="AgentPortifolio.Storage.SqlServer.Schema.001_schema.sql" />
+  </ItemGroup>
+</Project>
